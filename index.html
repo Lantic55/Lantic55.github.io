@@ -197,25 +197,15 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
 
   <div class="section">
     <div class="section-label">Log a match</div>
-	<div class="card" style="margin-bottom:1rem">
-  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-    <input
-      type="text"
-      id="statlocker-url"
-      placeholder="Paste Statlocker match URL..."
-      style="flex:1; min-width:240px"
-    />
-
-    <button class="btn primary" onclick="importStatlocker()">
-      Import match
-    </button>
-  </div>
-
-  <p style="font-size:11px; color:var(--muted); margin-top:8px">
-    Example:
-    https://statlocker.gg/profile/1123931349/matches/83126606/summary
-  </p>
-</div>
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input type="text" id="statlocker-url" placeholder="Paste Statlocker match URL..." style="flex:1; min-width:240px" />
+        <button class="btn primary" onclick="importStatlocker()">Import match</button>
+      </div>
+      <p style="font-size:11px; color:var(--muted); margin-top:8px">
+        Example: https://statlocker.gg/profile/1123931349/matches/83126606/summary
+      </p>
+    </div>
     <div class="card log-grid">
       <div class="log-form">
         <div class="field">
@@ -314,7 +304,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const PLAYERS = ['Lantic','Neel','Ollie','Wren'];
 const COLORS  = { Lantic:'#7F77DD', Neel:'#1D9E75', Ollie:'#D85A30', Wren:'#D4537E' };
-const DEMO    = false
+const DEMO    = false;
 
 let me = localStorage.getItem('dl_me') || null;
 let allMatches = [], allLinks = [];
@@ -326,8 +316,12 @@ function today() { return new Date().toISOString().slice(0,10); }
 // ── SUPABASE ───────────────────────────────────────────────────────────────
 async function sb(path, opts = {}) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
-    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json', Prefer: opts.prefer || 'return=representation' },
+    headers: { 
+      apikey: SUPABASE_KEY, 
+      Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', 
+      Prefer: opts.prefer || 'return=representation' 
+    },
     ...opts
   });
   if (!r.ok) throw new Error(await r.text());
@@ -598,47 +592,167 @@ function renderLinks() {
 }
 
 // ── ACTIONS ────────────────────────────────────────────────────────────────
+async function logMatch() {
+  const p = document.getElementById('log-player').value;
+  const a = document.getElementById('log-account').value;
+  const r = document.getElementById('log-result').value;
+  const h = document.getElementById('log-hero').value.trim();
+  const d = document.getElementById('log-date').value;
+  const n = document.getElementById('log-note').value.trim();
+
+  if(!d) return alert('Please choose a date');
+  sync('Saving match...');
+  
+  const match = { player:p, account:a, result:r, hero:h, date:d, note:n };
+  try {
+    if(DEMO) {
+      match.id = Math.max(0, ...allMatches.map(x=>x.id)) + 1;
+      allMatches.push(match);
+    } else {
+      const res = await postMatch(match);
+      if(res && res.length) allMatches.push(res[0]);
+    }
+    document.getElementById('log-hero').value = '';
+    document.getElementById('log-note').value = '';
+    sync('Match saved');
+    renderAll();
+  } catch(e) { sync('Error saving match'); alert(e.message); }
+}
+
+async function removeMatch(id) {
+  if(!confirm('Delete this match?')) return;
+  sync('Deleting...');
+  try {
+    if(DEMO) {
+      allMatches = allMatches.filter(x=>x.id !== id);
+    } else {
+      await delMatch(id);
+      allMatches = allMatches.filter(x=>x.id !== id);
+    }
+    sync('Deleted');
+    renderAll();
+  } catch(e) { sync('Error deleting'); alert(e.message); }
+}
+
+async function addLink() {
+  const url = document.getElementById('link-url').value.trim();
+  const tag = document.getElementById('link-tag').value.trim();
+  if(!url) return;
+  
+  const link = { url, tag, added_by: me };
+  sync('Adding link...');
+  try {
+    if(DEMO) {
+      link.id = Math.max(0, ...allLinks.map(x=>x.id)) + 1;
+      allLinks.push(link);
+    } else {
+      const res = await postLink(link);
+      if(res && res.length) allLinks.push(res[0]);
+    }
+    document.getElementById('link-url').value = '';
+    document.getElementById('link-tag').value = '';
+    sync('Link added');
+    renderAll();
+  } catch(e) { sync('Error adding link'); alert(e.message); }
+}
+
+async function removeLink(id) {
+  sync('Removing link...');
+  try {
+    if(DEMO) {
+      allLinks = allLinks.filter(x=>x.id !== id);
+    } else {
+      await delLink(id);
+      allLinks = allLinks.filter(x=>x.id !== id);
+    }
+    sync('Link removed');
+    renderAll();
+  } catch(e) { sync('Error removing link'); alert(e.message); }
+}
+
+function queueNoteSave() {
+  document.getElementById('notes-status').textContent = 'Typing...';
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(async () => {
+    if(DEMO) {
+      document.getElementById('notes-status').textContent = 'Saved local scratchpad';
+      return;
+    }
+    try {
+      await putNotes(document.getElementById('notes').value);
+      document.getElementById('notes-status').textContent = 'Shared with team';
+    } catch(e) { document.getElementById('notes-status').textContent = 'Save failed: ' + e.message; }
+  }, 1000);
+}
+
+function exportCSV() {
+  if (!allMatches.length) return alert('No matches to export');
+  let csv = 'ID,Date,Player,Account,Result,Hero,Note\n';
+  allMatches.slice().reverse().forEach((m, idx) => {
+    csv += `"${allMatches.length - idx}","${m.date}","${m.player}","${m.account}","${m.result}","${m.hero || ''}","${(m.note || '').replace(/"/g, '""')}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.setAttribute('download', `deadlock_history_${today()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 async function importStatlocker() {
-      'Paradox','Pocket','Seven','Shiv','Vindicta','Viscous',
-      'Warden','Wraith','Yamato','Mirage'
+  const urlField = document.getElementById('statlocker-url');
+  const url = urlField.value.trim();
+  if (!url) return alert('Please drop a match summary link first!');
+
+  const matchIdMatch = url.match(/matches\/(\d+)/);
+  if (!matchIdMatch) return alert('Invalid Statlocker URL configuration.');
+  const matchId = matchIdMatch[1];
+
+  sync('Fetching Statlocker parsing snapshot...');
+  try {
+    let html = "";
+    if (DEMO) {
+      html = "<h1>Match 83126606 Summary</h1><p>Duration: 34:12</p><p>Winner: Abrams Lash Infernus Paradox</p>";
+    } else {
+      // Direct client side configurations require CORS proxy handlers or backend workers
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+      if (!response.ok) throw new Error('CORS network aggregation failure.');
+      const data = await response.json();
+      html = data.contents;
+    }
+
+    let detectedPlayer = me || 'Lantic';
+    let detectedAccount = 'main';
+    let result = html.toLowerCase().includes('win') ? 'win' : 'loss';
+
+    const accountMap = { 'lantic': 'Lantic', 'neel': 'Neel', 'ollie': 'Ollie', 'wren': 'Wren' };
+    const heroList = [
+      'Abrams', 'Bebop', 'Dynamo', 'Grey自由', 'Grey Melter', 'Grey Goode', 'Haze', 'Infernus', 'Ivy', 'Kelvin', 'Lash', 'McGinnis', 'Mo & Krill',
+      'Paradox', 'Pocket', 'Seven', 'Shiv', 'Vindicta', 'Viscous', 'Warden', 'Wraith', 'Yamato', 'Mirage'
     ];
 
     let hero = '';
-
     for (const h of heroList) {
-      if (html.includes(h)) {
+      if (html.toLowerCase().includes(h.toLowerCase())) {
         hero = h;
         break;
       }
     }
 
     let duration = '';
-
     const durationMatch = html.match(/(\d{1,2}:\d{2})/);
-
-    if (durationMatch) {
-      duration = durationMatch[1];
-    }
+    if (durationMatch) duration = durationMatch[1];
 
     const teammates = [];
-
     for (const [name, mapped] of Object.entries(accountMap)) {
-      if (html.includes(name)) {
-        teammates.push(mapped);
-      }
+      if (html.toLowerCase().includes(name)) teammates.push(mapped);
     }
-
     const uniqueTeammates = [...new Set(teammates)];
 
     let note = 'Imported from Statlocker';
-
-    if (duration) {
-      note += ' • ' + duration;
-    }
-
-    if (uniqueTeammates.length) {
-      note += ' • Team: ' + uniqueTeammates.join(', ');
-    }
+    if (duration) note += ' • ' + duration;
+    if (uniqueTeammates.length) note += ' • Team: ' + uniqueTeammates.join(', ');
 
     const record = {
       player: detectedPlayer,
@@ -651,21 +765,16 @@ async function importStatlocker() {
     };
 
     if (DEMO) {
-      allMatches.push({
-        id: Math.max(0, ...allMatches.map(x => x.id)) + 1,
-        ...record,
-      });
+      record.id = Math.max(0, ...allMatches.map(x => x.id)) + 1;
+      allMatches.push(record);
     } else {
       const r = await postMatch(record);
-      allMatches.push(r[0]);
+      if(r && r.length) allMatches.push(r[0]);
     }
 
-    document.getElementById('statlocker-url').value = '';
-
+    urlField.value = '';
     renderAll();
-
     sync(`Imported ${hero || 'match'} • ${result.toUpperCase()}`);
-
   } catch (e) {
     console.error(e);
     sync('Import failed');
