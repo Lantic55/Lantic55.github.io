@@ -314,17 +314,14 @@ function today() { return new Date().toISOString().slice(0,10); }
 
 // 1. STABLE SQUAD MATRIX
 const STEAM_MAPPING = {
-  "76811383":          { name: "Neel",   account: "main" },
-  "99197018":          { name: "Neel",   account: "main" },
-  "1763067640":        { name: "Neel",   account: "alt" },  
-  "1863367640":        { name: "Lantic", account: "main" },
   "1123931349":        { name: "Lantic", account: "main" },
-  "1084153183":        { name: "Lantic", account: "alt" },  
-  "833408696":         { name: "Wren",   account: "main" },
-  "733708696":         { name: "Wren",   account: "alt" },  
-  "42607279":          { name: "Ollie",  account: "main" },
-  "426425114":         { name: "Ollie",  account: "main" },
-  "651018694":         { name: "Ollie",  account: "alt" }   
+  "1083953183":        { name: "Lantic", account: "alt" },
+  "299197018":         { name: "Neel",   account: "main" },
+  "1863367640":        { name: "Neel",   account: "alt" },
+  "164064333":         { name: "Ollie",  account: "main" },
+  "750982694":         { name: "Ollie",  account: "alt" },
+  "122426714":         { name: "Wren",   account: "main" },
+  "833408696":         { name: "Wren",   account: "alt" }
 };
 
 // 2. VALVE HERO LOOKUP MATRIX
@@ -756,10 +753,28 @@ async function importMatchViaId() {
     
     let databaseUploadPromises = [];
     let discoveredNames = [];
+    let skippedExistingNames = [];
+    const matchedPlayers = [];
 
     for (const pData of playersInMatch) {
       const squadMember = resolveSquadMember(pData);
       if (!squadMember) continue;
+      matchedPlayers.push({ pData, squadMember, team: getTeamId(pData) });
+    }
+
+    const teamCounts = matchedPlayers.reduce((counts, player) => {
+      if (player.team !== null && Number.isFinite(player.team)) {
+        counts[player.team] = (counts[player.team] || 0) + 1;
+      }
+      return counts;
+    }, {});
+    const squadTeam = Object.entries(teamCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const playersToImport = squadTeam === null
+      ? matchedPlayers
+      : matchedPlayers.filter(player => String(player.team) === String(squadTeam));
+
+    for (const { pData, squadMember, team: playerTeam } of playersToImport) {
+      if (discoveredNames.includes(squadMember.name)) continue;
 
       discoveredNames.push(squadMember.name);
 
@@ -767,7 +782,6 @@ async function importMatchViaId() {
       const heroName = HERO_IDS[heroId] || `Unknown (${heroId})`;
 
       let playerResult = "win"; // Fallback default
-      const playerTeam = getTeamId(pData);
       if (matchWinner !== null && playerTeam !== null) {
         playerResult = (Number(playerTeam) === Number(matchWinner)) ? "win" : "loss";
       } else if (pData.result !== undefined) {
@@ -784,10 +798,22 @@ async function importMatchViaId() {
         match_id: matchId
       };
 
+      const alreadyLogged = allMatches.some(m =>
+        String(m.match_id || '') === String(matchId) && m.player === record.player
+      );
+      if (alreadyLogged) {
+        skippedExistingNames.push(record.player);
+        continue;
+      }
+
       databaseUploadPromises.push(postMatch(record));
     }
 
     if (databaseUploadPromises.length === 0) {
+      if (skippedExistingNames.length > 0) {
+        sync(`Already logged: ${skippedExistingNames.join(', ')}`);
+        return;
+      }
       sync('Registry footprint missed profile accounts.');
       alert('Match parsed successfully, but no matching registered player Steam IDs were found inside this session payload.');
       return;
