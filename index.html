@@ -199,10 +199,9 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
     <div class="section-label">Log a match</div>
     <div class="card" style="margin-bottom:1rem">
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <input type="text" id="statlocker-url" placeholder="Paste Statlocker match URL or Match ID..." style="flex:1; min-width:240px" />
-        <button class="btn primary" onclick="importStatlocker()">Import match</button>
+        <input type="text" id="statlocker-url" placeholder="Enter Match ID or Link here..." style="flex:1; min-width:240px" />
+        <button class="btn primary" onclick="importMatchViaId()">Auto Fetch Data</button>
       </div>
-      <p style="font-size:11px; color:var(--muted); margin-top:8px">Example: https://statlocker.gg/profile/1123931349/matches/83126606/summary</p>
     </div>
     <div class="card log-grid">
       <div class="log-form">
@@ -229,8 +228,8 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
           <input type="date" id="log-date" />
         </div>
         <div class="field">
-          <label>Match ID (Manual)</label>
-          <input type="text" id="log-match-id" placeholder="e.g. 83126606" />
+          <label>Match ID</label>
+          <input type="text" id="log-match-id" placeholder="e.g. 83119611" />
         </div>
         <div class="field full">
           <label>Note</label>
@@ -241,7 +240,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
         </div>
       </div>
       <div>
-        <div class="section-label" style="margin-bottom:8px">Recent Entries</div>
+        <div class="section-label" style="margin-bottom:8px">Recent</div>
         <div id="recent-list"><p class="loading">Loading…</p></div>
       </div>
     </div>
@@ -276,10 +275,10 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
 
   <div class="two-col section">
     <div>
-      <div class="section-label">Statlocker links</div>
+      <div class="section-label">Saved Links</div>
       <div class="card">
         <div class="links-form">
-          <input type="text" id="link-url" placeholder="https://statlocker.gg/…" style="flex:2; min-width:0" />
+          <input type="text" id="link-url" placeholder="https://..." style="flex:2; min-width:0" />
           <input type="text" id="link-tag" placeholder="label" style="width:80px; flex:none" />
           <button class="btn primary sm" onclick="addLink()">Add</button>
         </div>
@@ -313,7 +312,6 @@ let noteTimer = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
 
-// ── SUPABASE API ───────────────────────────────────────────────────────────
 async function sb(path, opts = {}) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
@@ -331,15 +329,14 @@ const getLinks   = () => sb('links?select=*&order=id.asc');
 const postLink   = l => sb('links', { method:'POST', body: JSON.stringify(l) });
 const delLink    = id => sb('links?id=eq.'+id, { method:'DELETE', prefer:'' });
 const getNotes   = () => sb('notes?select=*&limit=1');
+
 async function putNotes(content) {
   const rows = await getNotes();
   if (rows && rows.length) await sb('notes?id=eq.'+rows[0].id, { method:'PATCH', body: JSON.stringify({ content }) });
   else await sb('notes', { method:'POST', body: JSON.stringify({ content }) });
 }
 
-// ── INITIALIZATION ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  if (DEMO) document.getElementById('config-warn').style.display = '';
   if (me) enterMain();
 });
 
@@ -369,7 +366,6 @@ async function enterMain() {
 
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
-// ── RENDER ENGINE ──────────────────────────────────────────────────────────
 function renderAll() {
   renderTeam(); renderCards(); renderCharts(); renderH2H();
   renderRecent(); renderHistory(); renderLinks();
@@ -553,7 +549,6 @@ function renderLinks() {
     </div>`).join('');
 }
 
-// ── MUTATIONS & ACTIONS ────────────────────────────────────────────────────
 async function logMatch() {
   sync('Logging match…');
   const record = {
@@ -636,21 +631,20 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
-// ── MATCH ID FETCH AUTOMATION ────────────────────────────────────────────────
-async function importStatlocker() {
+// ── NEW DATA PIPELINE (CLEAN JSON PATHS) ───────────────────────────────────
+async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
 
-  // Handles raw number IDs OR copy-pasted URLs cleanly
-  const matchIdRegex = /(?:matches\/)?(\d+)/;
+  const matchIdRegex = /(\d+)/;
   const match = input.match(matchIdRegex);
   if (!match) {
-    alert("Could not pull a valid match numeric ID from input!");
+    alert("Could not extract a valid match numeric ID!");
     return;
   }
   
   const matchId = match[1];
-  sync('Querying Supabase edge router...');
+  sync('Querying edge server...');
 
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
@@ -665,24 +659,19 @@ async function importStatlocker() {
     const result = await response.json();
     if (!result.success) throw new Error(result.error);
 
-    const matchData = result.match;
+    const metadata = result.match;
 
-    // Detect game properties dynamically from response array structure
-    // (Adjust paths below depending on exact JSON payload endpoints used)
-    let discoveredHero = matchData.hero_name || '';
-    let discoveredWin = matchData.win === true || matchData.result === 'win';
-
-    // Auto-fill form dashboard panels
-    document.getElementById('log-hero').value = discoveredHero;
-    document.getElementById('log-result').value = discoveredWin ? 'win' : 'loss';
-    document.getElementById('log-match-id').value = matchId;
-    document.getElementById('log-note').value = 'Fetched via Edge server';
+    // Direct JSON parameter interpretation
+    let matchDuration = metadata.duration_s ? Math.floor(metadata.duration_s / 60) + "m" : "";
     
-    sync('Data loaded! Confirm values and hit Log Match.');
+    document.getElementById('log-match-id').value = matchId;
+    document.getElementById('log-note').value = `Duration: ${matchDuration}`;
+    
+    sync('Basic structural info imported! Fill hero/result and submit.');
   } catch (e) {
     console.error(e);
-    sync('Import workflow error');
-    alert('Server data fetch failed: ' + e.message);
+    sync('Import pipeline error');
+    alert('Match fetch failed: ' + e.message);
   }
 }
 </script>
