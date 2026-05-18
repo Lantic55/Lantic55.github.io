@@ -661,7 +661,7 @@ const HERO_IDS = {
   61: "Rem", 62: "Drifter", 63: "Venator", 64: "Vyper", 65: "Paige"
 };
 
-// ── ADVANCED SQUAD MULTI-LOG MATCH PIPELINE ────────────────────────────────
+// ── SQUAD AUTO-FETCH MATCH PIPELINE (WITH AUTO-RETRY) ──────────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -674,89 +674,109 @@ async function importMatchViaId() {
   }
   
   const matchId = match[1];
-  sync('Scanning match cluster for squad members...');
+  
+  // Retry loop limits
+  const MAX_ATTEMPTS = 4; 
+  const DELAY_MS = 25000; // 25 seconds loop window
 
-  try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_KEY}`
-      },
-      body: JSON.stringify({ matchId: matchId })
-    });
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    sync(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying (Attempt ${attempt}/${MAX_ATTEMPTS})`);
 
-    const result = await response.json();
-    if (!result.success) throw new Error(result.error);
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ matchId: matchId })
+      });
 
-    const metadata = result.match;
-    
-    // Check possible API keys for the players array list
-    const playersInMatch = metadata.players || metadata.player_stats || metadata.player_metadata;
-    if (!playersInMatch || !Array.isArray(playersInMatch)) {
-      throw new Error("Match data found, but player arrays are missing from this API endpoint payload.");
-    }
-
-    const duration = metadata.match_duration_s || metadata.duration_s || 0;
-    const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
-    const winningTeam = metadata.winning_team; 
-
-    let databaseUploadPromises = [];
-    let discoveredNames = [];
-
-    // Evaluate all active player slots in the match data object
-    for (const pData of playersInMatch) {
-      const scannedId = String(pData.account_id || pData.player_id || pData.steam_id);
+      const result = await response.json();
       
-      if (STEAM_MAPPING[scannedId]) {
-        const squadMember = STEAM_MAPPING[scannedId];
-        discoveredNames.push(`${squadMember.name} (${squadMember.account})`);
-        
-        const heroId = pData.hero_id;
-        const heroName = HERO_IDS[heroId] || `Unknown Hero ID: ${heroId}`;
-        
-        // Determine win/loss status relative to the team slot assignment
-        let calculatedResult = "win";
-        if (pData.team !== undefined && winningTeam !== undefined) {
-          calculatedResult = (pData.team === winningTeam) ? "win" : "loss";
-        } else if (pData.won !== undefined) {
-          calculatedResult = pData.won ? "win" : "loss";
+      // If the API hasn't generated the match file yet (404 status returned)
+      if (!result.success && result.status === 404) {
+        if (attempt < MAX_ATTEMPTS) {
+          // Visual countdown effect
+          for (let sec = DELAY_MS / 1000; sec > 0; sec--) {
+            sync(`Match not processed by Valve yet. Retrying in ${sec}s...`);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+          continue; // Go to the next iteration loop
+        } else {
+          throw new Error("Match data is still unavailable on the cluster. Give it a minute and try again.");
         }
-
-        // Build database model row format
-        const record = {
-          player: squadMember.name,
-          account: squadMember.account,
-          result: calculatedResult,
-          hero: heroName,
-          date: metadata.start_time ? metadata.start_time.slice(0, 10) : today(),
-          note: `Auto-Fetched | Duration: ${durationStr}`,
-          match_id: matchId
-        };
-
-        databaseUploadPromises.push(postMatch(record));
       }
-    }
 
-    if (databaseUploadPromises.length === 0) {
-      sync('Fetch complete.');
-      alert(`Match loaded, but no matching team Account IDs were found in this match lobby.`);
+      if (!result.success) throw new Error(result.error);
+
+      const metadata = result.match;
+      console.log("Raw match payload received:", metadata);
+
+      const playersInMatch = metadata.players || metadata.player_stats || metadata.player_metadata || metadata.players_data;
+      if (!playersInMatch || !Array.isArray(playersInMatch)) {
+        throw new Error("Match data loaded, but player details array is missing.");
+      }
+
+      const duration = metadata.match_duration_s || metadata.duration_s || 0;
+      const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
+      const winningTeam = metadata.winning_team !== undefined ? metadata.winning_team : metadata.winning_team_id; 
+
+      let databaseUploadPromises = [];
+      let discoveredNames = [];
+
+      for (const pData of playersInMatch) {
+        const scannedId = String(pData.account_id || pData.player_id || pData.steam_id || pData.steamid32);
+        
+        if (STEAM_MAPPING[scannedId]) {
+          const squadMember = STEAM_MAPPING[scannedId];
+          discoveredNames.push(`${squadMember.name} (${squadMember.account})`);
+          
+          const heroId = pData.hero_id;
+          const heroName = HERO_IDS[heroId] || `Unknown Hero ID: ${heroId}`;
+          
+          let calculatedResult = "win";
+          if (pData.won !== undefined) {
+            calculatedResult = pData.won ? "win" : "loss";
+          } else if (pData.team !== undefined && winningTeam !== undefined) {
+            calculatedResult = (pData.team === winningTeam) ? "win" : "loss";
+          } else if (pData.result !== undefined) {
+            calculatedResult = String(pData.result).toLowerCase().includes('win') ? "win" : "loss";
+          }
+
+          const record = {
+            player: squadMember.name,
+            account: squadMember.account,
+            result: calculatedResult,
+            hero: heroName,
+            date: metadata.start_time ? metadata.start_time.slice(0, 10) : today(),
+            note: `Auto-Fetched | Duration: ${durationStr}`,
+            match_id: matchId
+          };
+
+          databaseUploadPromises.push(postMatch(record));
+        }
+      }
+
+      if (databaseUploadPromises.length === 0) {
+        sync('Fetch complete.');
+        alert(`Match data loaded, but none of your squad's verified Account IDs were found in this match lobby list.`);
+        return;
+      }
+
+      const uploadedRecords = await Promise.all(databaseUploadPromises);
+      uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
+      
+      sync(`Logged match data for: ${discoveredNames.join(', ')}`);
+      renderAll();
+      return; // Success! Break out of the function entirely.
+
+    } catch (e) {
+      console.error(e);
+      sync('Import pipeline error');
+      alert('Match fetch failed: ' + e.message);
       return;
     }
-
-    // Simultaneously log rows for everyone discovered in the match
-    const uploadedRecords = await Promise.all(databaseUploadPromises);
-    
-    // Push the results directly to your local live dashboard view state
-    uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
-    
-    sync(`Logged match for: ${discoveredNames.join(', ')}`);
-    renderAll();
-
-  } catch (e) {
-    console.error(e);
-    sync('Import pipeline error');
-    alert('Match fetch failed: ' + e.message);
   }
 }
 </script>
