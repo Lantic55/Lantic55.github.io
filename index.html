@@ -366,35 +366,33 @@ async function enterMain() {
 
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
+// ============================================================================
+// 2. COMPLETE DASHBOARD RENDER & DATA ENGINE (PREVENTS LOADING FREEZES)
+// ============================================================================
 function renderAll() {
   const tbody = document.getElementById('match-history-body');
   if (!tbody) return;
   
-  // 1. CLEAR EXISTING ROWS
+  // Clear table space for refreshed layout state injection
   tbody.innerHTML = '';
 
-  // 2. CHRONOLOGICAL SORT ENGINE (Newest Dates First -> Grouped by Match ID Descending)
+  // CHRONOLOGICAL SORT ENGINE (Newest Dates First -> Grouped by Match ID Descending)
   allMatches.sort((a, b) => {
-    // Sort by Date descending
     if (b.date !== a.date) {
       return b.date.localeCompare(a.date);
     }
-    // Secondary fallback: group identical match IDs together safely
     return Number(b.match_id || 0) - Number(a.match_id || 0);
   });
 
-  // 3. GENERATE DYNAMIC HTML LAYOUT ROWS
+  // GENERATE THE INTERACTIVE UI DISPLAY ROWS
   allMatches.forEach((match, index) => {
     const tr = document.createElement('tr');
     
-    // Determine specific visual badge color alignments based on match outcomes
     const resultClass = match.result === 'win' ? 'badge-win' : 'badge-loss';
     const playerClass = `player-${match.player.toLowerCase()}`;
 
-    // Clean historical date normalization formatting (strips fallback years if present)
     let displayDate = match.date;
     if (displayDate && displayDate.includes('-') && displayDate.split('-')[0].length === 4) {
-      // If date is YYYY-MM-DD, slice it down to MM-DD
       displayDate = displayDate.slice(5);
     }
 
@@ -415,9 +413,15 @@ function renderAll() {
     tbody.appendChild(tr);
   });
 
-  // 4. UPDATE INTERACTIVE DASHBOARD STATS
+  // SAFE DYNAMIC CALLBACK TRIGGERS FOR YOUR INTERACTIVE CHARTS & METRICS CARD BLOCKS
   if (typeof updateStats === 'function') {
     updateStats();
+  }
+  if (typeof updateCharts === 'function') {
+    updateCharts();
+  }
+  if (typeof updateHeadToHead === 'function') {
+    updateHeadToHead();
   }
 }
 
@@ -712,9 +716,12 @@ const HERO_IDS = {
   31: "McGinnis", 52: "Warden"
 };
 
-// ── FIXED AUTO-FETCH PIPELINE WITH TIMESTAMPS & FORCED TEAM WINS ──────────
+// ============================================================================
+// 1. FIXED AUTO-FETCH PIPELINE WITH HISTORICAL TIMESTAMPS & FORCED SQUAD WINS
+// ============================================================================
 async function importMatchViaId() {
-  const input = document.getElementById('statlocker-url').value.trim();
+  const input = document.getElementById('statlocker-url')?.value.trim() || 
+                document.getElementById('match-id-input')?.value.trim(); // Dynamic selector fallback
   if (!input) return;
 
   const matchIdRegex = /(\d+)/;
@@ -729,7 +736,12 @@ async function importMatchViaId() {
   const DELAY_MS = 15000; 
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    sync(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying (Attempt ${attempt}/${MAX_ATTEMPTS})`);
+    // Check which feedback utility function your script uses to print system status updates
+    if (typeof sync === 'function') {
+      sync(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying (Attempt ${attempt}/${MAX_ATTEMPTS})`);
+    } else if (typeof setStatus === 'function') {
+      setStatus(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying`);
+    }
 
     try {
       const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
@@ -779,12 +791,11 @@ async function importMatchViaId() {
       const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
       const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
       
-      // FIX 1: Extract real Unix timestamp from match instead of using current date
+      // Pull true Unix timestamp out of match data payload instead of local time
       const startTimeRaw = findKeyDeep(payload, 'start_time');
-      let matchFormattedDate = today(); // Fallback if missing
+      let matchFormattedDate = (typeof today === 'function') ? today() : new Date().toISOString().slice(0, 10);
       
       if (startTimeRaw) {
-        // Convert Valve epoch seconds to JavaScript milliseconds, then pull MM-DD format
         const matchDateObj = new Date(Number(startTimeRaw) * 1000);
         const mm = String(matchDateObj.getMonth() + 1).padStart(2, '0');
         const dd = String(matchDateObj.getDate()).padStart(2, '0');
@@ -808,13 +819,13 @@ async function importMatchViaId() {
         if (squadMember.name === "Lantic") heroName = "Apollo";
         if (squadMember.name === "Ollie") heroName = "Haze";
 
-        // FIX 2: Your squad queued together and won! Force "win" across the entire team lobby record
+        // Squad queued and won together. Force "win" across all registered squad profiles found.
         const record = {
           player: squadMember.name,
           account: squadMember.account,
           result: "win", 
           hero: heroName,
-          date: matchFormattedDate, // Saved historical match date
+          date: matchFormattedDate, 
           note: `Auto-Fetched | Duration: ${durationStr}`,
           match_id: matchId
         };
@@ -845,18 +856,73 @@ async function importMatchViaId() {
         }
       }
 
-      const uploadedRecords = await Promise.all(databaseUploadPromises);
+      const uploadedRecords = await Promise.all(databaseUploadPromises);// ============================================================================
+// 2. COMPLETE DASHBOARD RENDER & DATA ENGINE (PREVENTS LOADING FREEZES)
+// ============================================================================
+function renderAll() {
+  const tbody = document.getElementById('match-history-body');
+  if (!tbody) return;
+  
+  // Clear table space for refreshed layout state injection
+  tbody.innerHTML = '';
+
+  // CHRONOLOGICAL SORT ENGINE (Newest Dates First -> Grouped by Match ID Descending)
+  allMatches.sort((a, b) => {
+    if (b.date !== a.date) {
+      return b.date.localeCompare(a.date);
+    }
+    return Number(b.match_id || 0) - Number(a.match_id || 0);
+  });
+
+  // GENERATE THE INTERACTIVE UI DISPLAY ROWS
+  allMatches.forEach((match, index) => {
+    const tr = document.createElement('tr');
+    
+    const resultClass = match.result === 'win' ? 'badge-win' : 'badge-loss';
+    const playerClass = `player-${match.player.toLowerCase()}`;
+
+    let displayDate = match.date;
+    if (displayDate && displayDate.includes('-') && displayDate.split('-')[0].length === 4) {
+      displayDate = displayDate.slice(5);
+    }
+
+    tr.innerHTML = `
+      <td>${allMatches.length - index}</td>
+      <td>${displayDate || '05-18'}</td>
+      <td><span class="player-badge ${playerClass}">${match.player}</span></td>
+      <td><span class="account-tag">${match.account || 'main'}</span></td>
+      <td><span class="result-badge ${resultClass}">${match.result.toUpperCase()}</span></td>
+      <td class="hero-cell"><strong>${match.hero}</strong></td>
+      <td class="match-id-cell">${match.match_id || '—'}</td>
+      <td class="note-cell">${match.note || ''}</td>
+      <td>
+        <button class="delete-btn" onclick="deleteMatch('${match.id}', ${index})">✕</button>
+      </td>
+    `;
+    
+    tbody.appendChild(tr);
+  });
+
+  // SAFE DYNAMIC CALLBACK TRIGGERS FOR YOUR INTERACTIVE CHARTS & METRICS CARD BLOCKS
+  if (typeof updateStats === 'function') {
+    updateStats();
+  }
+  if (typeof updateCharts === 'function') {
+    updateCharts();
+  }
+  if (typeof updateHeadToHead === 'function') {
+    updateHeadToHead();
+  }
+}
       uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
       
-      sync(`Logged match data for: ${discoveredNames.join(', ')}`);
-      
-      // Re-trigger global display sync with chronological sort order rules active
+      if (typeof sync === 'function') sync(`Logged match data for: ${discoveredNames.join(', ')}`);
       renderAll();
       return;
 
     } catch (e) {
       console.error(e);
-      sync('Import pipeline error');
+      if (typeof sync === 'function') sync('Import pipeline error');
       alert('Match fetch failed: ' + e.message);
       return;
     }
