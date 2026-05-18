@@ -25,6 +25,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .player-btn { padding: 1rem; border: 1px solid var(--border2); border-radius: var(--rl); background: var(--surface); cursor: pointer; font-family: var(--font); font-size: 15px; font-weight: 500; color: var(--text); transition: background 0.15s; }
 .player-btn:hover { background: var(--surface2); }
 
+#config-warn { background: rgba(186,117,23,0.1); border: 1px solid rgba(186,117,23,0.35); border-radius: var(--r); padding: 1rem 1.25rem; font-size: 13px; color: #EF9F27; max-width: 520px; line-height: 1.7; }
+#config-warn code { font-family: var(--mono); font-size: 12px; background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 3px; }
+
 #main-screen { display: none; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; flex-wrap: wrap; gap: 10px; }
 header h1 { font-size: 17px; font-weight: 500; }
@@ -102,15 +105,38 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .h2h-table td.self { background: var(--hint); color: var(--hint); }
 .h2h-pos { color: #97C459; } .h2h-neg { color: #F09595; } .h2h-neu { color: var(--muted); }
 
+.links-form { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.link-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 8px; }
+.link-item:last-child { border-bottom: none; }
+.link-item a { color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.link-item a:hover { text-decoration: underline; }
+.link-tag { font-size: 11px; color: var(--muted); padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; white-space: nowrap; }
 .empty-state { font-size: 13px; color: var(--hint); padding: 0.75rem 0; }
 .loading { font-size: 13px; color: var(--hint); padding: 0.5rem 0; font-family: var(--mono); }
-textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
+
+/* Ingestion Queue styling */
+.stack-box { border-left: 3px solid var(--accent); padding-left: 12px; margin-top: 0.5rem; }
+.claim-btn { background: rgba(55,138,221,0.12); border: 1px dashed var(--accent); color: #85B7EB; padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; }
+.claim-btn:hover { background: var(--accent-d); color: #fff; border-style: solid; }
+
+@media (max-width: 720px) {
+  .stats-grid { grid-template-columns: repeat(2,1fr); }
+  .player-row { grid-template-columns: repeat(2,1fr); }
+  .charts-row, .log-grid, .two-col { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
 <div class="app">
 
 <div id="setup-screen">
+  <div id="config-warn" style="display:none">
+    <strong>Supabase not configured.</strong> Running in demo mode — data is not shared.<br/>
+    Edit <code>index.html</code> and set <code>SUPABASE_URL</code> and <code>SUPABASE_KEY</code> at the top of the script.<br/>
+    See <strong>README.md</strong> for the full setup guide including the SQL to create tables.
+  </div>
   <h1>Deadlock team tracker</h1>
   <p style="color:var(--muted); font-size:13px">Who are you?</p>
   <div class="player-grid">
@@ -119,6 +145,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
     <button class="player-btn" style="border-color:#D85A30" onclick="selectPlayer('Ollie')">Ollie</button>
     <button class="player-btn" style="border-color:#D4537E" onclick="selectPlayer('Wren')">Wren</button>
   </div>
+  <p id="setup-msg" style="font-size:12px; color:var(--muted); font-family:var(--mono)"></p>
 </div>
 
 <div id="main-screen">
@@ -133,6 +160,11 @@ textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
       </div>
     </div>
   </header>
+
+  <div class="section" id="stack-queue-section" style="display:none">
+    <div class="section-label">Active Group Lobbies (Click to add your hero)</div>
+    <div class="card stack-box" id="stack-queue-box"></div>
+  </div>
 
   <div class="section">
     <div class="section-label">Team overview — all time</div>
@@ -176,7 +208,15 @@ textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
   </div>
 
   <div class="section">
-    <div class="section-label">Log a match manually</div>
+    <div class="section-label">Log a match</div>
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input type="text" id="statlocker-url" placeholder="Paste Statlocker match URL..." style="flex:1; min-width:240px" />
+        <button class="btn primary" onclick="importStatlocker()">Import match</button>
+      </div>
+      <p style="font-size:11px; color:var(--muted); margin-top:8px">Example: https://statlocker.gg/profile/1123931349/matches/83126606/summary</p>
+    </div>
+
     <div class="card log-grid">
       <div class="log-form">
         <div class="field">
@@ -202,19 +242,23 @@ textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
           <input type="date" id="log-date" />
         </div>
         <div class="field">
-          <label>Match Duration</label>
+          <label>Duration (MM:SS)</label>
           <input type="text" id="log-duration" placeholder="e.g. 24:15" />
         </div>
         <div class="field full">
-          <label>Match ID (Optional)</label>
-          <input type="text" id="log-match-id" placeholder="In-game match ID token..." />
+          <label>Match ID Token (For Shared Lobby Linking)</label>
+          <input type="text" id="log-match-id" placeholder="e.g. 83126606" />
         </div>
-        <div class="full" style="margin-top: 4px;">
-          <button class="btn primary" onclick="logMatch()" style="width:100%">Log match</button>
+        <div class="field full">
+          <label>Note</label>
+          <input type="text" id="log-note" placeholder="quick note…" />
+        </div>
+        <div class="full">
+          <button class="btn primary" onclick="logMatch()" style="width:100%">Log match manually</button>
         </div>
       </div>
       <div>
-        <div class="section-label" style="margin-bottom:8px">Recent Ingestion History</div>
+        <div class="section-label" style="margin-bottom:8px">Recent Ingestions</div>
         <div id="recent-list"><p class="loading">Loading…</p></div>
       </div>
     </div>
@@ -222,7 +266,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
 
   <div class="section">
     <div class="section-label">Match history</div>
-    <div class="card" style="margin-bottom: 1rem">
+    <div class="card" style="margin-bottom:1rem">
       <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
         <select id="f-player" onchange="renderHistory()" style="font-size:12px">
           <option value="all">All players</option>
@@ -239,22 +283,42 @@ textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
       </div>
       <div style="overflow-x:auto">
         <table class="htable">
-          <thead><tr><th>#</th><th>Date</th><th>Player</th><th>Account</th><th>Result</th><th>Hero</th><th>Game Pace</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Date</th><th>Player</th><th>Account</th><th>Result</th><th>Hero</th><th>Match ID</th><th>Length</th><th>Note</th><th></th></tr></thead>
           <tbody id="history-body"></tbody>
         </table>
       </div>
       <p class="empty-state" id="history-empty" style="display:none">No matches match the filter.</p>
     </div>
 
-    <div id="context-note-box" class="card" style="display:none">
+    <div id="match-review-box" class="card" style="display:none; border-top: 3px solid var(--accent)">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-        <div class="section-label" id="context-note-lbl" style="margin-bottom:0">Match Notes Editor</div>
-        <button class="btn sm" onclick="saveContextNote()" id="context-note-save-btn">Save Note</button>
+        <div class="section-label" id="review-box-title" style="margin-bottom:0; color:var(--text)">Match Review Editor</div>
+        <button class="btn primary sm" onclick="saveMatchReview()" id="review-save-btn">Save Performance Notes</button>
       </div>
-      <textarea id="notes" placeholder="Type specific notes/performance reviews for this match here..."></textarea>
+      <textarea id="match-review-text" placeholder="Type structural performance metrics, notes, build paths, and review items here for your squad..."></textarea>
     </div>
   </div>
 
+  <div class="two-col section">
+    <div>
+      <div class="section-label">Statlocker links</div>
+      <div class="card">
+        <div class="links-form">
+          <input type="text" id="link-url" placeholder="https://statlocker.gg/…" style="flex:2; min-width:0" />
+          <input type="text" id="link-tag" placeholder="label" style="width:80px; flex:none" />
+          <button class="btn primary sm" onclick="addLink()">Add</button>
+        </div>
+        <div id="link-list"><p class="empty-state">No links yet.</p></div>
+      </div>
+    </div>
+    <div>
+      <div class="section-label">Team notes</div>
+      <div class="card">
+        <textarea id="notes" placeholder="Draft patterns, hero ideas, things to review…" oninput="queueNoteSave()"></textarea>
+        <div style="font-size:11px; color:var(--hint); margin-top:6px" id="notes-status">Shared with team</div>
+      </div>
+    </div>
+  </div>
 </div>
 </div>
 
@@ -262,18 +326,20 @@ textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
 <script>
 const SUPABASE_URL = 'https://ezzqccgyhndzfwtzejzw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6enFjY2d5aG5kemZ3dHplanp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMTUxMzcsImV4cCI6MjA5NDY5MTEzN30.GMaX7zVf-NuwlGG17kWwu3Bf_YsXRQgax73gpy_BBUI';
+const DEMO = false;
 
 const PLAYERS = ['Lantic','Neel','Ollie','Wren'];
 const COLORS  = { Lantic:'#7F77DD', Neel:'#1D9E75', Ollie:'#D85A30', Wren:'#D4537E' };
 
 let me = localStorage.getItem('dl_me') || null;
-let allMatches = [];
+let allMatches = [], allLinks = [];
 let chartToday = null, chartTotal = null;
-let selectedMatchId = null;
+let noteTimer = null;
+let selectedMatchRowId = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
 
-// ── SUPABASE REST GATEWAY ──────────────────────────────────────────────────
+// ── SUPABASE REST CORE GATEWAY ─────────────────────────────────────────────
 async function sb(path, opts = {}) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
@@ -288,8 +354,17 @@ const getMatches = () => sb('matches?select=*&order=id.asc');
 const postMatch  = m => sb('matches', { method:'POST', body: JSON.stringify(m) });
 const patchMatch = (id, fields) => sb('matches?id=eq.'+id, { method:'PATCH', body: JSON.stringify(fields) });
 const delMatch   = id => sb('matches?id=eq.'+id, { method:'DELETE', prefer:'' });
+const getLinks   = () => sb('links?select=*&order=id.asc');
+const postLink   = l => sb('links', { method:'POST', body: JSON.stringify(l) });
+const delLink    = id => sb('links?id=eq.'+id, { method:'DELETE', prefer:'' });
+const getNotes   = () => sb('notes?select=*&limit=1');
+async function putNotes(content) {
+  const rows = await getNotes();
+  if (rows && rows.length) await sb('notes?id=eq.'+rows[0].id, { method:'PATCH', body: JSON.stringify({ content }) });
+  else await sb('notes', { method:'POST', body: JSON.stringify({ content }) });
+}
 
-// ── APPLICATION CORE INITIALIZATION ────────────────────────────────────────
+// ── INIT RUNTIME ───────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   if (me) enterMain();
 });
@@ -309,8 +384,10 @@ async function enterMain() {
   document.getElementById('log-date').value = today();
   sync('Loading…');
   try {
-    const m = await getMatches();
+    const [m, l, n] = await Promise.all([getMatches(), getLinks(), getNotes()]);
     allMatches = m || [];
+    allLinks   = l || [];
+    document.getElementById('notes').value = (n && n.length) ? n[0].content : '';
     sync('');
     renderAll();
   } catch(e) { sync('Error: '+e.message); }
@@ -318,22 +395,79 @@ async function enterMain() {
 
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
-// ── DURATION CALCULATION TIER MAPPING ──────────────────────────────────────
-function getPaceFromDuration(durationStr) {
-  if (!durationStr || !durationStr.includes(':')) return 'Standard';
-  const parts = durationStr.split(':');
-  const minutes = parseInt(parts[0], 10);
-  if (isNaN(minutes)) return 'Standard';
-  
-  if (minutes < 20) return '<20';
-  if (minutes >= 20 && minutes <= 35) return '20-35';
-  return '35+';
-}
-
-// ── VISUAL UI RENDERING MATRICES ───────────────────────────────────────────
+// ── CORE RENDERING HUB ─────────────────────────────────────────────────────
 function renderAll() {
   renderTeam(); renderCards(); renderCharts(); renderH2H();
-  renderRecent(); renderHistory();
+  renderRecent(); renderHistory(); renderLinks(); renderSharedStackQueue();
+}
+
+// ── DYNAMIC GROUP LOBBIES INGESTION QUEUE ──────────────────────────────────
+function renderSharedStackQueue() {
+  const section = document.getElementById('stack-queue-section');
+  const box = document.getElementById('stack-queue-box');
+  
+  const groupedByMatch = {};
+  allMatches.forEach(m => {
+    if (m.match_id) {
+      if (!groupedByMatch[m.match_id]) {
+        groupedByMatch[m.match_id] = {
+          match_id: m.match_id, date: m.date, result: m.result,
+          duration: m.duration, note: m.note, account: m.account, players: []
+        };
+      }
+      groupedByMatch[m.match_id].players.push(m.player);
+    }
+  });
+
+  const joinableLobbies = Object.values(groupedByMatch).filter(lobby => {
+    return !lobby.players.includes(me);
+  }).sort((a,b) => b.match_id - a.match_id).slice(0, 3);
+
+  if (joinableLobbies.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  box.innerHTML = joinableLobbies.map(lobby => {
+    const spaceList = lobby.players.map(p => `<span class="pill ${p}">${p}</span>`).join(' ');
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:12px;">
+        <div>
+          <span style="font-family:var(--mono); font-weight:500;">Lobby Match ID: ${lobby.match_id}</span>
+          <span class="pill ${lobby.result}" style="margin-left:6px">${lobby.result.toUpperCase()}</span>
+          ${lobby.duration ? `<span class="pill main" style="margin-left:6px">${lobby.duration}</span>` : ''}
+          <div style="margin-top:4px; font-size:12px; color:var(--muted)">Logged inside: ${spaceList}</div>
+        </div>
+        <div>
+          <button class="claim-btn" onclick="joinStackRow('${lobby.match_id}', '${lobby.result}', '${lobby.duration || ''}', '${lobby.note || ''}', '${lobby.account}', '${lobby.date}')">
+            + Log My Character For Game
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function joinStackRow(matchId, result, duration, note, account, date) {
+  const heroName = prompt(`Which hero did you play in Match #${matchId}?`);
+  if (!heroName || !heroName.trim()) return;
+
+  sync('Linking hero profiles...');
+  const record = {
+    player: me, account, result, hero: heroName.trim(),
+    date, duration, note, match_id: matchId
+  };
+
+  try {
+    const r = await postMatch(record);
+    allMatches.push(r[0]);
+    sync('Hero recorded successfully!');
+    renderAll();
+  } catch(e) {
+    sync('Linking failed');
+    alert(e.message);
+  }
 }
 
 function renderTeam() {
@@ -460,155 +594,12 @@ function renderH2H() {
 function renderRecent() {
   const el=document.getElementById('recent-list');
   const rows=[...allMatches].sort((a,b)=>b.id-a.id).slice(0,6);
-  if(!rows.length){el.innerHTML='<p class="empty-state">No matches logged yet.</p>';return;}
+  if(!rows.length){el.innerHTML='<p class="empty-state">No matches yet.</p>';return;}
   el.innerHTML=rows.map(m=>`
     <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
       <span class="pill ${m.player}">${m.player}</span>
       <span class="pill ${m.result}">${m.result}</span>
       <span class="pill ${m.account}">${m.account}</span>
-      ${m.hero?`<span style="font-size:12px">${m.hero}</span>`:''}
-      <span style="flex:1"></span>
-      <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">Pace: ${m.note || 'Standard'}</span>
-    </div>`).join('');
-}
-
-function renderHistory() {
-  const fp=document.getElementById('f-player').value;
-  const fa=document.getElementById('f-account').value;
-  const fr=document.getElementById('f-result').value;
-  const fh=(document.getElementById('f-hero').value||'').toLowerCase();
-  let rows=[...allMatches].sort((a,b)=>b.id-a.id);
-  if(fp!=='all')rows=rows.filter(x=>x.player===fp);
-  if(fa!=='all')rows=rows.filter(x=>x.account===fa);
-  if(fr!=='all')rows=rows.filter(x=>x.result===fr);
-  if(fh)rows=rows.filter(x=>(x.hero||'').toLowerCase().includes(fh));
-  const body=document.getElementById('history-body');
-  const empty=document.getElementById('history-empty');
-  if(!rows.length){body.innerHTML='';empty.style.display='';return;}
-  empty.style.display='none';
-  body.innerHTML=rows.map((m,i)=>`
-    <tr id="match-row-${m.id}" class="${selectedMatchId === m.id ? 'selected' : ''}" onclick="selectMatch(${m.id})">
-      <td style="color:var(--hint);font-family:var(--mono)">${rows.length-i}</td>
-      <td style="font-family:var(--mono);font-size:12px">${m.date.slice(5)}</td>
-      <td><span class="pill ${m.player}">${m.player}</span></td>
-      <td><span class="pill ${m.account}">${m.account}</span></td>
-      <td><span class="pill ${m.result}">${m.result}</span></td>
-      <td style="font-size:12px">${m.hero||'<span style="color:var(--hint)">—</span>'}</td>
-      <td style="color:var(--muted);font-family:var(--mono);font-size:12px">${m.note||'Standard'}</td>
-      <td><button class="btn danger" onclick="removeMatch(event, ${m.id})">✕</button></td>
-    </tr>`).join('');
-}
-
-// ── MATCH CONTEXT ROW CLICK MANAGER ──────────────────────────────────────
-function selectMatch(id) {
-  selectedMatchId = id;
-  const target = allMatches.find(x => x.id === id);
-  
-  document.querySelectorAll('#history-body tr').forEach(r => r.classList.remove('selected'));
-  const rowEl = document.getElementById(`match-row-${id}`);
-  if (rowEl) rowEl.classList.add('selected');
-  
-  const container = document.getElementById('context-note-box');
-  const textarea = document.getElementById('notes');
-  const label = document.getElementById('context-note-lbl');
-  
-  label.textContent = `Reviewing Match #${target.match_id || target.id} (${target.player} on ${target.hero || 'Hero'})`;
-  // We use the custom match comments data field inside the existing match entry text array map
-  textarea.value = target.match_notes || ''; 
-  container.style.display = 'block';
-}
-
-async function saveContextNote() {
-  if (!selectedMatchId) return;
-  const textVal = document.getElementById('notes').value.trim();
-  const btn = document.getElementById('context-note-save-btn');
-  
-  btn.textContent = 'Saving...';
-  sync('Updating custom match notes...');
-  
-  try {
-    // Save to custom note column 'match_notes'
-    await patchMatch(selectedMatchId, { match_notes: textVal });
-    
-    const matchIdx = allMatches.findIndex(x => x.id === selectedMatchId);
-    if (matchIdx !== -1) {
-      allMatches[matchIdx].match_notes = textVal;
-    }
-    
-    sync('Notes successfully saved');
-    btn.textContent = 'Saved!';
-    setTimeout(() => { btn.textContent = 'Save Note'; }, 1500);
-  } catch (e) {
-    sync('Error saving note: ' + e.message);
-    btn.textContent = 'Error';
-  }
-}
-
-// ── WRITE MANUAL ENTRY CONTROLLER ──────────────────────────────────────────
-async function logMatch() {
-  sync('Committing manual match data...');
-  
-  const durationVal = document.getElementById('log-duration').value.trim();
-  const calculatedPace = getPaceFromDuration(durationVal);
-
-  // We write exclusively into existing base columns (note, player, account, result, hero, date, match_id)
-  const record = {
-    player: document.getElementById('log-player').value,
-    account: document.getElementById('log-account').value,
-    result: document.getElementById('log-result').value,
-    hero: document.getElementById('log-hero').value.trim(),
-    date: document.getElementById('log-date').value || today(),
-    note: calculatedPace, // Timestamps (<20, 20-35, 35+) go straight to the verified text 'note' column
-    match_id: document.getElementById('log-match-id').value.trim() || null
-  };
-
-  try {
-    const r = await postMatch(record);
-    allMatches.push(r[0]);
-
-    // Clear inputs
-    document.getElementById('log-hero').value = '';
-    document.getElementById('log-duration').value = '';
-    document.getElementById('log-match-id').value = '';
-    
-    sync('Record verified');
-    renderAll();
-  } catch(e) { 
-    sync('Commit Error'); 
-    alert('Failed to execute append operations over Supabase: ' + e.message); 
-  }
-}
-
-async function removeMatch(event, id) {
-  if (event) event.stopPropagation();
-  if (!confirm('Are you sure you want to drop this match entry?')) return;
-  sync('Dropping match...');
-  try {
-    await delMatch(id);
-    allMatches = allMatches.filter(x=>x.id!==id);
-    if (selectedMatchId === id) {
-      selectedMatchId = null;
-      document.getElementById('context-note-box').style.display = 'none';
-    }
-    sync('Drop confirmed');
-    renderAll();
-  } catch(e) { sync('Drop failed: '+e.message); }
-}
-
-function exportCSV() {
-  if (!allMatches.length) return alert('No logged instances available.');
-  let csv = 'ID,Date,Player,Account,Result,Hero,PaceGroup,Notes\n';
-  for (const m of allMatches) {
-    csv += `"${m.match_id||m.id}","${m.date}","${m.player}","${m.account}","${m.result}","${m.hero||''}","${m.note||'Standard'}","${(m.match_notes||'').replace(/"/g, '""')}"\n`;
-  }
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.setAttribute('download', `deadlock_team_track_${today()}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-</script>
-</body>
-</html>
+      ${m.hero?`<span style="font-size:12px; font-weight:500;">${m.hero}</span>`:''}
+      ${m.duration?`<span class="pill main">${m.duration}</span>`:''}
+      ${m.note?`<span
