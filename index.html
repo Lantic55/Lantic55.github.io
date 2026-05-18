@@ -631,34 +631,26 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
-// 1. DUAL-FORMAT ID MATRIX (Maps both 32-bit and 64-bit formats for safety)
+// 1. THE CORRECTED SQUAD ACCOUNT ID DICTIONARY (Verified against raw match telemetry)
 const STEAM_MAPPING = {
   // Neel
   "99197018":          { name: "Neel",   account: "main" },
-  "76561198259462746": { name: "Neel",   account: "main" },
   "1763067640":        { name: "Neel",   account: "alt" },
-  "76561199823633368": { name: "Neel",   account: "alt" },
   
   // Lantic
   "1123931349":        { name: "Lantic", account: "main" },
-  "76561199084197077": { name: "Lantic", account: "main" },
   "1084153183":        { name: "Lantic", account: "alt" },
-  "76561199044218911": { name: "Lantic", account: "alt" },
 
   // Wren
-  "341257912":         { name: "Wren",   account: "main" },
-  "76561198301523640": { name: "Wren",   account: "main" }, // Conversions for vanity names
+  "833408696":         { name: "Wren",   account: "main" }, // Corrected from payload
   "733708696":         { name: "Wren",   account: "alt" },
-  "76561198793674424": { name: "Wren",   account: "alt" },
 
   // Ollie
-  "426425114":         { name: "Ollie",  account: "main" },
-  "76561198386690842": { name: "Ollie",  account: "main" }, // Conversions for vanity names
-  "651018694":         { name: "Ollie",  account: "alt" },
-  "76561198711248422": { name: "Ollie",  account: "alt" }
+  "42607279":          { name: "Ollie",  account: "main" }, // Corrected from payload
+  "651018694":         { name: "Ollie",  account: "alt" }
 };
 
-// 2. HERO ID MATRIX
+// 2. HERO ID DICTIONARY
 const HERO_IDS = {
   1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 6: "Apollo", 
   7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 10: "Seven", 11: "Lash", 
@@ -717,7 +709,7 @@ async function importMatchViaId() {
       const payload = result.match;
       console.log("Raw match payload received:", payload);
 
-      // Deep search function to pull out players array wherever it resides
+      // Deep search for player entries array
       function findPlayersArray(obj) {
         if (!obj || typeof obj !== 'object') return null;
         if (Array.isArray(obj.players)) return obj.players;
@@ -751,29 +743,25 @@ async function importMatchViaId() {
         throw new Error("Match data loaded successfully, but the player data array is missing.");
       }
 
-      const duration = findKeyDeep(payload, 'match_duration_s') || findKeyDeep(payload, 'duration_s') || 0;
+      const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
       const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
-      const winningTeam = findKeyDeep(payload, 'winning_team') || findKeyDeep(payload, 'winning_team_id');
+      
+      // Extract properties based on schema layout rules
+      const winningTeam = findKeyDeep(payload, 'winning_team');
       const startTime = findKeyDeep(payload, 'start_time');
 
       let databaseUploadPromises = [];
       let discoveredNames = [];
 
-      // Loop through all data objects inside the match lobby
       for (const pData of playersInMatch) {
-        // Collect every conceivable property naming variant for IDs
         const idOptions = [
           pData.account_id, 
           pData.player_id, 
           pData.steam_id, 
-          pData.steamid,
-          pData.steamid64,
-          pData.user_id
+          pData.steamid
         ].filter(val => val !== undefined && val !== null);
 
         let squadMember = null;
-        
-        // Check if any variant matches our database mapping keys
         for (let option of idOptions) {
           const strOption = String(option).trim();
           if (STEAM_MAPPING[strOption]) {
@@ -782,20 +770,23 @@ async function importMatchViaId() {
           }
         }
 
-        // If a friend is caught in this lobby loop sequence, process their data row entry
         if (squadMember) {
           discoveredNames.push(`${squadMember.name} (${squadMember.account})`);
           
           const heroId = pData.hero_id;
           const heroName = HERO_IDS[heroId] || `Hero ID: ${heroId}`;
           
+          // Determine match assignment using team slots: Slots 0-5 = Team 0, Slots 6-11 = Team 1
+          let playerTeam = pData.team;
+          if (playerTeam === undefined && pData.player_slot !== undefined) {
+            playerTeam = pData.player_slot < 6 ? 0 : 1;
+          }
+
           let calculatedResult = "win";
           if (pData.won !== undefined) {
             calculatedResult = pData.won ? "win" : "loss";
-          } else if (pData.team !== undefined && winningTeam !== undefined) {
-            calculatedResult = (pData.team === winningTeam) ? "win" : "loss";
-          } else if (pData.result !== undefined) {
-            calculatedResult = String(pData.result).toLowerCase().includes('win') ? "win" : "loss";
+          } else if (playerTeam !== undefined && winningTeam !== undefined) {
+            calculatedResult = (playerTeam === winningTeam) ? "win" : "loss";
           }
 
           const record = {
@@ -803,27 +794,24 @@ async function importMatchViaId() {
             account: squadMember.account,
             result: calculatedResult,
             hero: heroName,
-            date: startTime ? startTime.slice(0, 10) : today(),
+            date: startTime ? new Date(startTime * 1000).toISOString().slice(0, 10) : today(),
             note: `Auto-Fetched | Duration: ${durationStr}`,
             match_id: matchId
           };
 
-          // Queue parallel row records into your Supabase database array table
           databaseUploadPromises.push(postMatch(record));
         }
       }
 
       if (databaseUploadPromises.length === 0) {
         sync('Fetch complete.');
-        console.log("Inspected player object array keys for reference:", playersInMatch);
-        alert(`Match records parsed successfully, but still none of your squad's registered IDs matched the player data properties in this lobby array. Let's look at the raw console logs.`);
+        alert(`Match records parsed successfully, but still none of your squad's registered IDs matched the player data properties in this lobby array.`);
         return;
       }
 
-      // Execute all row insertions simultaneously to update every user together!
+      // Upload rows for everyone found in the game simultaneously
       const uploadedRecords = await Promise.all(databaseUploadPromises);
       
-      // Merge results into local live dashboard array data state
       uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
       
       sync(`Logged match data for: ${discoveredNames.join(', ')}`);
