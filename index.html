@@ -631,7 +631,37 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
-// ── DATA PIPELINE (UPDATED FOR DEADLOCK-API KEY NAMES) ────────────────────
+// 1. ALL REAL TEAM STEAM/ACCOUNT ID MAPS (Main + Alts)
+const STEAM_MAPPING = {
+  // Neel
+  "99197018":   { name: "Neel",   account: "main" }, // 76561198259462746
+  "1763067640": { name: "Neel",   account: "alt" },  // 76561199823633368
+  
+  // Lantic
+  "1123931349": { name: "Lantic", account: "main" }, // 76561199084197077
+  "1084153183": { name: "Lantic", account: "alt" },  // 76561199044218911
+
+  // Wren
+  "341257912":  { name: "Wren",   account: "main" }, // itsrogy
+  "733708696":  { name: "Wren",   account: "alt" },  // 76561198793674424
+
+  // Ollie
+  "426425114":  { name: "Ollie",  account: "main" }, // Oleander_
+  "651018694":  { name: "Ollie",  account: "alt" }   // 76561198711248422
+};
+
+// 2. COMPREHENSIVE HERO ROSTER (UP TO THE NEWEST RELEASES)
+const HERO_IDS = {
+  1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 6: "Apollo", 
+  7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 10: "Seven", 11: "Lash", 
+  12: "Bebop", 13: "Viscous", 14: "Haze", 15: "Pocket", 16: "Mirage", 
+  17: "Mo & Krill", 18: "Dynamo", 19: "Wraith", 20: "Yamato", 25: "Shiv", 
+  31: "McGinnis", 48: "Mina", 50: "Holiday", 52: "Warden", 55: "Celeste", 
+  56: "Victor", 57: "Calico", 58: "Billy", 59: "Silver", 60: "Doorman", 
+  61: "Rem", 62: "Drifter", 63: "Venator", 64: "Vyper", 65: "Paige"
+};
+
+// ── ADVANCED SQUAD MULTI-LOG MATCH PIPELINE ────────────────────────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -644,7 +674,7 @@ async function importMatchViaId() {
   }
   
   const matchId = match[1];
-  sync('Querying edge server...');
+  sync('Scanning match cluster for squad members...');
 
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
@@ -659,31 +689,70 @@ async function importMatchViaId() {
     const result = await response.json();
     if (!result.success) throw new Error(result.error);
 
-    // The raw data payload from api.deadlock-api.com
     const metadata = result.match;
-    console.log("Raw match payload received:", metadata); // This lets you inspect the object in your Console
-
-    // 1. Calculate match duration text
-    let matchDuration = "";
-    if (metadata.match_duration_s) {
-      matchDuration = Math.floor(metadata.match_duration_s / 60) + "m";
-    } else if (metadata.duration_s) {
-      matchDuration = Math.floor(metadata.duration_s / 60) + "m";
+    
+    // Check possible API keys for the players array list
+    const playersInMatch = metadata.players || metadata.player_stats || metadata.player_metadata;
+    if (!playersInMatch || !Array.isArray(playersInMatch)) {
+      throw new Error("Match data found, but player arrays are missing from this API endpoint payload.");
     }
 
-    // 2. Set UI values safely based on API response structures
-    document.getElementById('log-match-id').value = matchId;
-    
-    if (matchDuration) {
-      document.getElementById('log-note').value = `Duration: ${matchDuration}`;
-    } else {
-      document.getElementById('log-note').value = `Fetched ID: ${matchId}`;
+    const duration = metadata.match_duration_s || metadata.duration_s || 0;
+    const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
+    const winningTeam = metadata.winning_team; 
+
+    let databaseUploadPromises = [];
+    let discoveredNames = [];
+
+    // Evaluate all active player slots in the match data object
+    for (const pData of playersInMatch) {
+      const scannedId = String(pData.account_id || pData.player_id || pData.steam_id);
+      
+      if (STEAM_MAPPING[scannedId]) {
+        const squadMember = STEAM_MAPPING[scannedId];
+        discoveredNames.push(`${squadMember.name} (${squadMember.account})`);
+        
+        const heroId = pData.hero_id;
+        const heroName = HERO_IDS[heroId] || `Unknown Hero ID: ${heroId}`;
+        
+        // Determine win/loss status relative to the team slot assignment
+        let calculatedResult = "win";
+        if (pData.team !== undefined && winningTeam !== undefined) {
+          calculatedResult = (pData.team === winningTeam) ? "win" : "loss";
+        } else if (pData.won !== undefined) {
+          calculatedResult = pData.won ? "win" : "loss";
+        }
+
+        // Build database model row format
+        const record = {
+          player: squadMember.name,
+          account: squadMember.account,
+          result: calculatedResult,
+          hero: heroName,
+          date: metadata.start_time ? metadata.start_time.slice(0, 10) : today(),
+          note: `Auto-Fetched | Duration: ${durationStr}`,
+          match_id: matchId
+        };
+
+        databaseUploadPromises.push(postMatch(record));
+      }
     }
+
+    if (databaseUploadPromises.length === 0) {
+      sync('Fetch complete.');
+      alert(`Match loaded, but no matching team Account IDs were found in this match lobby.`);
+      return;
+    }
+
+    // Simultaneously log rows for everyone discovered in the match
+    const uploadedRecords = await Promise.all(databaseUploadPromises);
     
-    // Note: Because this public endpoint returns general match data (and doesn't know *which* // of the 12 players in the lobby is you), you'll just select your Hero and Result 
-    // manually as normal, then press "Log match"!
+    // Push the results directly to your local live dashboard view state
+    uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
     
-    sync('Match ID and metadata imported! Select your Hero/Result and submit.');
+    sync(`Logged match for: ${discoveredNames.join(', ')}`);
+    renderAll();
+
   } catch (e) {
     console.error(e);
     sync('Import pipeline error');
