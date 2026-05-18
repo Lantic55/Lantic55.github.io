@@ -64,6 +64,19 @@ header h1 { font-size: 17px; font-weight: 500; }
 .seg-btn { min-width: 58px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-family: var(--font); font-size: 12px; padding: 4px 10px; }
 .seg-btn:hover { color: var(--text); }
 .seg-btn.active { background: var(--accent-d); color: #fff; }
+.compact-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.mini-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.mini-table th { color: var(--muted); font-weight: 500; text-align: left; padding: 0 8px 8px; border-bottom: 1px solid var(--border); }
+.mini-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+.preview-box { display: none; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.preview-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.preview-row { padding: 5px 0; font-size: 12px; }
+.warn-box { display:none; margin-top: 8px; padding: 8px 10px; border-radius: var(--r); border: 1px solid rgba(186,117,23,0.35); color: #EF9F27; background: rgba(186,117,23,0.1); font-size: 12px; }
+.match-main { cursor: pointer; }
+.match-detail { display: none; background: rgba(255,255,255,0.02); }
+.match-detail.open { display: table-row; }
+.hero-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.note-line { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; min-width: 280px; }
 
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .log-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -160,7 +173,14 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
   </header>
 
   <div class="section">
-    <div class="section-label">Team overview — all time</div>
+    <div class="compact-head">
+      <div class="section-label" style="margin-bottom:0">Team overview</div>
+      <div class="segmented" aria-label="Overview account filter">
+        <button class="seg-btn active" id="overview-all-btn" type="button" onclick="setOverviewAccount('all')">All</button>
+        <button class="seg-btn" id="overview-main-btn" type="button" onclick="setOverviewAccount('main')">Main</button>
+        <button class="seg-btn" id="overview-alt-btn" type="button" onclick="setOverviewAccount('alt')">Alt</button>
+      </div>
+    </div>
     <div class="stats-grid" style="margin-bottom:10px">
       <div class="stat-card"><div class="lbl">Total wins</div><div class="val wc" id="s-w">—</div><div class="sub" id="s-w2"></div></div>
       <div class="stat-card"><div class="lbl">Total losses</div><div class="val lc" id="s-l">—</div><div class="sub" id="s-l2"></div></div>
@@ -168,6 +188,24 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
       <div class="stat-card"><div class="lbl">Today</div><div class="val" id="s-today">—</div><div class="sub" id="s-today2"></div></div>
     </div>
     <div class="player-row" id="player-cards"></div>
+  </div>
+
+  <div class="section">
+    <div class="compact-head">
+      <div class="section-label" style="margin-bottom:0">Hero stats</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <select id="hero-stat-player" onchange="renderHeroStats()" style="font-size:12px; width:auto">
+          <option value="all">All players</option>
+          <option>Lantic</option><option>Neel</option><option>Ollie</option><option>Wren</option>
+        </select>
+        <select id="hero-stat-account" onchange="renderHeroStats()" style="font-size:12px; width:auto">
+          <option value="all">All accounts</option><option value="main">Main</option><option value="alt">Alt</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <div style="overflow-x:auto" id="hero-stats-wrap"><p class="empty-state">No hero data yet.</p></div>
+    </div>
   </div>
 
   <div class="section">
@@ -219,6 +257,8 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
         <input type="text" id="statlocker-url" placeholder="Enter Match ID or Link here..." style="flex:1; min-width:240px" />
         <button class="btn primary" onclick="importMatchViaId()">Auto Fetch Data</button>
       </div>
+      <div class="warn-box" id="import-warnings"></div>
+      <div class="preview-box" id="import-preview"></div>
     </div>
     <div class="card log-grid">
       <div class="log-form">
@@ -282,7 +322,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
       </div>
       <div style="overflow-x:auto">
         <table class="htable">
-          <thead><tr><th>#</th><th>Date</th><th>Player</th><th>Account</th><th>Result</th><th>Hero</th><th>Match ID</th><th>Note</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Match</th><th>Account</th><th>Result</th><th>Players</th><th>Notes</th><th></th></tr></thead>
           <tbody id="history-body"></tbody>
         </table>
       </div>
@@ -325,9 +365,11 @@ const DEMO    = false;
 let me = localStorage.getItem('dl_me') || null;
 let allMatches = [], allLinks = [];
 let chartToday = null, chartTotal = null;
+let overviewAccount = localStorage.getItem('dl_overview_account') || 'all';
 let chartAccount = localStorage.getItem('dl_chart_account') || 'main';
 let h2hAccount = localStorage.getItem('dl_h2h_account') || 'main';
 let noteTimer = null;
+let pendingImport = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
 
@@ -470,6 +512,7 @@ async function sb(path, opts = {}) {
 }
 const getMatches = () => sb('matches?select=*&order=id.asc');
 const postMatch  = m => sb('matches', { method:'POST', body: JSON.stringify(m) });
+const patchMatchNotes = (matchId, account, match_notes) => sb(`matches?match_id=eq.${encodeURIComponent(matchId)}&account=eq.${encodeURIComponent(account)}`, { method:'PATCH', body: JSON.stringify({ match_notes }) });
 const delMatch   = id => sb('matches?id=eq.'+id, { method:'DELETE', prefer:'' });
 const getLinks   = () => sb('links?select=*&order=id.asc');
 const postLink   = l => sb('links', { method:'POST', body: JSON.stringify(l) });
@@ -512,6 +555,13 @@ async function enterMain() {
 
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
+function setOverviewAccount(account) {
+  overviewAccount = ['all','main','alt'].includes(account) ? account : 'all';
+  localStorage.setItem('dl_overview_account', overviewAccount);
+  renderTeam();
+  renderCards();
+}
+
 function setChartAccount(account) {
   chartAccount = account === 'alt' ? 'alt' : 'main';
   localStorage.setItem('dl_chart_account', chartAccount);
@@ -532,6 +582,10 @@ function displayDate(date) {
   return date && date.includes('-') && date.split('-')[0].length === 4 ? date.slice(5) : date;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function getMatchSessions(rows) {
   const groups = {};
   for (const m of rows) {
@@ -546,6 +600,7 @@ function getMatchSessions(rows) {
     const wins = session.rows.filter(x=>x.result==='win').length;
     const losses = session.rows.filter(x=>x.result==='loss').length;
     session.result = wins >= losses ? 'win' : 'loss';
+    session.matchNotes = session.rows.find(x=>x.match_notes)?.match_notes || '';
     session.players = {};
     for (const row of session.rows) {
       if (!session.players[row.player]) session.players[row.player] = { w:0, l:0 };
@@ -566,6 +621,7 @@ function renderAll() {
 
   renderTeam();
   renderCards();
+  renderHeroStats();
   renderCharts();
   renderH2H();
   renderRecent();
@@ -574,7 +630,13 @@ function renderAll() {
 }
 
 function renderTeam() {
-  const sessions = getMatchSessions(allMatches);
+  const overviewRows = overviewAccount === 'all' ? allMatches : allMatches.filter(x=>x.account===overviewAccount);
+  const sessions = getMatchSessions(overviewRows);
+  for (const account of ['all','main','alt']) {
+    const btn = document.getElementById(`overview-${account}-btn`);
+    if (btn) btn.classList.toggle('active', overviewAccount === account);
+  }
+  const scopeLabel = overviewAccount === 'all' ? 'all accounts' : `${overviewAccount} account`;
   const w = sessions.filter(x=>x.result==='win').length;
   const l = sessions.filter(x=>x.result==='loss').length;
   const t = w+l;
@@ -585,14 +647,15 @@ function renderTeam() {
   document.getElementById('s-l').textContent  = l;
   document.getElementById('s-wr').textContent = t ? Math.round(w/t*100)+'%' : '—%';
   document.getElementById('s-w2').textContent = t+' team games';
-  document.getElementById('s-l2').textContent = t ? Math.round(l/t*100)+'% loss rate' : '';
+  document.getElementById('s-l2').textContent = t ? Math.round(l/t*100)+'% loss rate' : scopeLabel;
+  document.querySelector('#s-wr + .sub').textContent = scopeLabel;
   document.getElementById('s-today').textContent = td.length;
   document.getElementById('s-today2').textContent = tw+'W / '+tl+'L';
 }
 
 function renderCards() {
   document.getElementById('player-cards').innerHTML = PLAYERS.map(p => {
-    const pm = allMatches.filter(x=>x.player===p);
+    const pm = allMatches.filter(x=>x.player===p && (overviewAccount==='all' || x.account===overviewAccount));
     const pw = pm.filter(x=>x.result==='win').length;
     const pl = pm.filter(x=>x.result==='loss').length;
     const wr = pw+pl ? Math.round(pw/(pw+pl)*100) : null;
@@ -614,6 +677,41 @@ function renderCards() {
       </div>
     </div>`;
   }).join('');
+}
+
+function renderHeroStats() {
+  const wrap = document.getElementById('hero-stats-wrap');
+  if (!wrap) return;
+  const fp = document.getElementById('hero-stat-player')?.value || 'all';
+  const fa = document.getElementById('hero-stat-account')?.value || 'all';
+  let rows = allMatches.filter(x=>x.hero);
+  if (fp !== 'all') rows = rows.filter(x=>x.player===fp);
+  if (fa !== 'all') rows = rows.filter(x=>x.account===fa);
+
+  const byHero = {};
+  for (const row of rows) {
+    const key = `${row.player}|${row.hero}|${row.account}`;
+    if (!byHero[key]) byHero[key] = { player: row.player, hero: row.hero, account: row.account, w:0, l:0 };
+    if (row.result === 'win') byHero[key].w++; else byHero[key].l++;
+  }
+  const stats = Object.values(byHero).sort((a,b) => (b.w+b.l)-(a.w+a.l) || b.w-a.w).slice(0, 8);
+  if (!stats.length) {
+    wrap.innerHTML = '<p class="empty-state">No hero data yet.</p>';
+    return;
+  }
+  wrap.innerHTML = `<table class="mini-table">
+    <thead><tr><th>Player</th><th>Hero</th><th>Account</th><th>Games</th><th>WR</th></tr></thead>
+    <tbody>${stats.map(s => {
+      const total = s.w+s.l;
+      return `<tr>
+        <td><span class="pill ${s.player}">${s.player}</span></td>
+        <td><strong>${escapeHtml(s.hero)}</strong></td>
+        <td><span class="pill ${s.account}">${s.account}</span></td>
+        <td style="font-family:var(--mono)">${s.w}W ${s.l}L</td>
+        <td style="font-family:var(--mono)">${Math.round(s.w/total*100)}%</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
 }
 
 function renderCharts() {
@@ -765,6 +863,82 @@ function renderHistory() {
     </tr>`).join('');
 }
 
+renderHistory = function() {
+  const fp=document.getElementById('f-player').value;
+  const fa=document.getElementById('f-account').value;
+  const fr=document.getElementById('f-result').value;
+  const fh=(document.getElementById('f-hero').value||'').toLowerCase();
+  let rows=[...allMatches];
+  if(fp!=='all')rows=rows.filter(x=>x.player===fp);
+  if(fa!=='all')rows=rows.filter(x=>x.account===fa);
+  if(fr!=='all')rows=rows.filter(x=>x.result===fr);
+  if(fh)rows=rows.filter(x=>(x.hero||'').toLowerCase().includes(fh));
+
+  const sessions = getMatchSessions(rows).sort((a,b) => {
+    if ((b.date || '') !== (a.date || '')) return (b.date || '').localeCompare(a.date || '');
+    return b.sortId - a.sortId;
+  });
+  const body=document.getElementById('history-body');
+  const empty=document.getElementById('history-empty');
+  if(!sessions.length){body.innerHTML='';empty.style.display='';return;}
+  empty.style.display='none';
+
+  body.innerHTML=sessions.map((s,i)=>{
+    const rowId = `match-detail-${i}`;
+    const safeMatch = escapeHtml(s.matchId || '');
+    const players = s.rows.map(m=>`<span class="pill ${m.player}">${m.player}</span>`).join('');
+    const heroes = s.rows.map(m=>`<span><span class="pill ${m.player}">${m.player}</span> <strong>${escapeHtml(m.hero || '-')}</strong></span>`).join('');
+    return `
+      <tr class="match-main" onclick="toggleMatchDetail('${rowId}')">
+        <td style="font-family:var(--mono);font-size:12px">${displayDate(s.date)}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${escapeHtml(s.matchId || 'manual')}</td>
+        <td><span class="pill ${s.account}">${s.account}</span></td>
+        <td><span class="pill ${s.result}">${s.result}</span></td>
+        <td><div class="preview-row">${players}</div></td>
+        <td style="color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${escapeHtml(s.matchNotes || '')}</td>
+        <td><button class="btn danger sm" onclick="event.stopPropagation(); removeMatchSession('${safeMatch}','${s.account}')">x</button></td>
+      </tr>
+      <tr class="match-detail" id="${rowId}">
+        <td colspan="7">
+          <div class="hero-strip">${heroes}</div>
+          <div class="note-line">
+            <input type="text" id="${rowId}-note" value="${escapeHtml(s.matchNotes || '')}" placeholder="Match notes..." onclick="event.stopPropagation()" />
+            <button class="btn sm primary" onclick="saveMatchNotes('${safeMatch}','${s.account}','${rowId}-note')">Save note</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+};
+
+function toggleMatchDetail(id) {
+  document.getElementById(id)?.classList.toggle('open');
+}
+
+async function saveMatchNotes(matchId, account, inputId) {
+  const value = document.getElementById(inputId)?.value || '';
+  if (!matchId) return alert('This manual row needs a match ID before shared notes can be saved.');
+  sync('Saving match note...');
+  try {
+    const updated = await patchMatchNotes(matchId, account, value);
+    allMatches = allMatches.map(m => String(m.match_id || '') === String(matchId) && m.account === account ? { ...m, match_notes: value } : m);
+    sync(updated ? 'Match note saved' : 'Match note saved');
+    renderHistory();
+  } catch(e) { sync('Note save error'); alert(e.message); }
+}
+
+async function removeMatchSession(matchId, account) {
+  if (!matchId) return alert('Remove manual rows individually from the raw export for now.');
+  if (!confirm('Erase this whole match session?')) return;
+  const rows = allMatches.filter(m => String(m.match_id || '') === String(matchId) && m.account === account);
+  sync('Removing match...');
+  try {
+    await Promise.all(rows.map(m => delMatch(m.id)));
+    allMatches = allMatches.filter(m => !(String(m.match_id || '') === String(matchId) && m.account === account));
+    sync('Match removed');
+    renderAll();
+  } catch(e) { sync('Error deleting'); alert(e.message); }
+}
+
 function renderLinks() {
   const el=document.getElementById('link-list');
   if(!allLinks.length){el.innerHTML='<p class="empty-state">No links yet.</p>';return;}
@@ -782,6 +956,67 @@ function renderLinks() {
 // ============================================================================
 // METICULOUSLY STABILIZED AUTOMATED INGESTION ENGINE
 // ============================================================================
+function setImportWarnings(warnings) {
+  const box = document.getElementById('import-warnings');
+  if (!box) return;
+  if (!warnings.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  box.innerHTML = warnings.map(w => `<div>${escapeHtml(w)}</div>`).join('');
+}
+
+function showImportPreview(records, warnings, skippedNames) {
+  const box = document.getElementById('import-preview');
+  setImportWarnings(warnings);
+  if (!box) return;
+  if (!records.length) {
+    box.style.display = 'block';
+    box.innerHTML = `<p class="empty-state">${skippedNames.length ? `Already logged: ${escapeHtml(skippedNames.join(', '))}` : 'No registered team players found.'}</p>`;
+    pendingImport = null;
+    return;
+  }
+  pendingImport = records;
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <div class="section-label" style="margin-bottom:0">Import preview</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn sm" onclick="cancelImportPreview()">Cancel</button>
+        <button class="btn sm primary" onclick="confirmImportPreview()">Confirm import</button>
+      </div>
+    </div>
+    ${records.map(r => `<div class="preview-row">
+      <span class="pill ${r.player}">${r.player}</span>
+      <span class="pill ${r.account}">${r.account}</span>
+      <span class="pill ${r.result}">${r.result}</span>
+      <strong>${escapeHtml(r.hero || '-')}</strong>
+      <span style="color:var(--muted);font-family:var(--mono);margin-left:auto">${escapeHtml(r.match_id)}</span>
+    </div>`).join('')}
+    ${skippedNames.length ? `<p class="empty-state" style="padding-bottom:0">Already logged: ${escapeHtml(skippedNames.join(', '))}</p>` : ''}`;
+}
+
+function cancelImportPreview() {
+  pendingImport = null;
+  const box = document.getElementById('import-preview');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  setImportWarnings([]);
+  sync('');
+}
+
+async function confirmImportPreview() {
+  if (!pendingImport || !pendingImport.length) return;
+  sync('Importing match...');
+  try {
+    const uploadedRecords = await Promise.all(pendingImport.map(record => postMatch(record)));
+    uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
+    const names = pendingImport.map(r => r.player);
+    pendingImport = null;
+    document.getElementById('statlocker-url').value = '';
+    cancelImportPreview();
+    sync(`Logged match data for: ${names.join(', ')}`);
+    renderAll();
+  } catch(e) { sync('Import error'); alert(e.message); }
+}
+
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url')?.value.trim();
   if (!input) return;
@@ -838,9 +1073,10 @@ async function importMatchViaId() {
 
     const matchWinner = findKeyDeep(payload, 'match_winner') || findKeyDeep(payload, 'winning_team');
     
-    let databaseUploadPromises = [];
+    let previewRecords = [];
     let discoveredNames = [];
     let skippedExistingNames = [];
+    let warnings = [];
     const matchedPlayers = [];
 
     for (const pData of playersInMatch) {
@@ -856,9 +1092,12 @@ async function importMatchViaId() {
       return counts;
     }, {});
     const squadTeam = Object.entries(teamCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    if (Object.keys(teamCounts).length > 1) warnings.push('Registered accounts appeared on both teams; importing the side with the most registered players.');
+    if (matchedPlayers.length < 4) warnings.push(`Only ${matchedPlayers.length} registered team player${matchedPlayers.length===1?' was':'s were'} found.`);
     const playersToImport = squadTeam === null
       ? matchedPlayers
       : matchedPlayers.filter(player => String(player.team) === String(squadTeam));
+    if (playersToImport.length < 4) warnings.push(`Preview contains ${playersToImport.length}/4 expected team rows.`);
 
     for (const { pData, squadMember, team: playerTeam } of playersToImport) {
       if (discoveredNames.includes(squadMember.name)) continue;
@@ -893,25 +1132,11 @@ async function importMatchViaId() {
         continue;
       }
 
-      databaseUploadPromises.push(postMatch(record));
+      previewRecords.push(record);
     }
 
-    if (databaseUploadPromises.length === 0) {
-      if (skippedExistingNames.length > 0) {
-        sync(`Already logged: ${skippedExistingNames.join(', ')}`);
-        return;
-      }
-      sync('Registry footprint missed profile accounts.');
-      alert('Match parsed successfully, but no matching registered player Steam IDs were found inside this session payload.');
-      return;
-    }
-
-    const uploadedRecords = await Promise.all(databaseUploadPromises);
-    uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
-    
-    document.getElementById('statlocker-url').value = '';
-    sync(`Logged match data for: ${discoveredNames.join(', ')}`);
-    renderAll();
+    showImportPreview(previewRecords, warnings, skippedExistingNames);
+    sync(previewRecords.length ? `Preview ready for: ${previewRecords.map(r=>r.player).join(', ')}` : 'Nothing new to import');
 
   } catch (e) {
     console.error(e);
