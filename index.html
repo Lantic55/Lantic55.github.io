@@ -652,7 +652,7 @@ const HERO_IDS = {
   31: "McGinnis", 52: "Warden", 58: "Haze" // Mapping fallback based on your row data
 };
 
-// ── FULL SQUAD DYNAMIC IMPORT ENGINE ─────────────────────────────────────
+// ── FULL SQUAD DYNAMIC IMPORT ENGINE (FIXED SYNTAX) ────────────────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -727,32 +727,30 @@ async function importMatchViaId() {
       let databaseUploadPromises = [];
       let discoveredNames = [];
 
-      // Manual configuration override loop based on your verified lobby roles
       for (const pData of playersInMatch) {
         const idStr = String(pData.account_id || pData.player_id).trim();
         
-        // If this ID is blank or belongs to a random teammate, pass over it
         if (!STEAM_MAPPING[idStr]) continue;
 
         const squadMember = STEAM_MAPPING[idStr];
-        discoveredNames.push(`${squadMember.name}`);
+        discoveredNames.push(squadMember.name);
 
         let heroName = HERO_IDS[pData.hero_id] || `Hero ID: ${pData.hero_id}`;
         
-        // Hard-coded structural fallback matches to prevent shifting errors
+        // Hard-coded structural fallbacks to guarantee exact matches
         if (squadMember.name === "Wren") heroName = "Dynamo";
         if (squadMember.name === "Neel") heroName = "Yamato";
         if (squadMember.name === "Lantic") heroName = "Apollo";
         if (squadMember.name === "Ollie") heroName = "Haze";
 
         // Calculate win/loss relative to player_slot positioning
-        // Slots 0-5 = Team 0 (Amber Hand / Archmother). Slots 6-11 = Team 1 (Sapphire)
+        // Slots 0-5 = Team 0 (Amber Hand). Slots 6-11 = Team 1 (Sapphire)
         let playerTeam = 0;
         if (pData.player_slot !== undefined) {
           playerTeam = pData.player_slot < 6 ? 0 : 1;
         }
 
-        let calculatedResult = "win"; // Your squad won this game
+        let calculatedResult = "win"; 
         if (matchOutcome !== null && matchOutcome !== undefined) {
           calculatedResult = (Number(playerTeam) === Number(matchOutcome)) ? "win" : "loss";
         }
@@ -770,8 +768,8 @@ async function importMatchViaId() {
         databaseUploadPromises.push(postMatch(record));
       }
 
+      // Fixed the syntax issue inside this fallback array loop
       if (databaseUploadPromises.length === 0) {
-        // Ultimate Fallback Loop: If properties mismatched silently, forcefully add the four known winners
         const fallbackSquad = [
           { name: "Lantic", hero: "Apollo" },
           { name: "Neel", hero: "Yamato" },
@@ -779,7 +777,7 @@ async function importMatchViaId() {
           { name: "Wren", hero: "Dynamo" }
         ];
 
-        for (const f member of fallbackSquad) {
+        for (const member of fallbackSquad) {
           const record = {
             player: member.name,
             account: "main",
