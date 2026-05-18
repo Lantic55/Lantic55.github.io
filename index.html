@@ -312,25 +312,25 @@ let noteTimer = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
 
-// REAL REPAIRED STEAM32 ACCOUNT REGISTRY
+// EXPLICIT REGISTRY MAP (STRINGS FOR UNIVERSAL MATCH RESOLUTION)
 const STEAM_MAPPING = {
-  "1123931349":        { name: "Lantic", account: "main" }, 
-  "1863367640":        { name: "Lantic", account: "main" },
-  "1084153183":        { name: "Lantic", account: "alt" },  
+  "1123931349": { name: "Lantic", account: "main" },
+  "1863367640": { name: "Lantic", account: "main" },
+  "1084153183": { name: "Lantic", account: "alt" },
   
-  "176306764":         { name: "Neel",   account: "main" },  // Corrected missing high-order index mapping
-  "99197018":          { name: "Neel",   account: "main" }, 
-  "1763067640":        { name: "Neel",   account: "alt" },  
+  "176306764":  { name: "Neel",   account: "main" },
+  "99197018":   { name: "Neel",   account: "main" },
+  "1763067640": { name: "Neel",   account: "alt" },
   
-  "426072791":         { name: "Ollie",  account: "main" },  // Fixed missing 1 trailing integer
-  "426425114":         { name: "Ollie",  account: "main" }, 
-  "651018694":         { name: "Ollie",  account: "alt" },
+  "426072791":  { name: "Ollie",  account: "main" },
+  "426425114":  { name: "Ollie",  account: "main" },
+  "651018694":  { name: "Ollie",  account: "alt" },
 
-  "833408696":         { name: "Wren",   account: "main" },
-  "733708696":         { name: "Wren",   account: "alt" }  
+  "833408696":  { name: "Wren",   account: "main" },
+  "733708696":  { name: "Wren",   account: "alt" }
 };
 
-// COMPREHENSIVE VALVE API HERO LOG MATRIX
+// DYNAMIC VALVE HERO CONFIGURATION DICTIONARY
 const HERO_IDS = {
   1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 
   6: "Apollo", 7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 
@@ -395,7 +395,7 @@ async function enterMain() {
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
 // ============================================================================
-// LIVE DYNAMIC PARSER ENGINE (UNALTERED TELEMETRY RESOLUTION)
+// STABILIZED INGESTION RESOLVER ENGINE (ZERO FALLBACKS)
 // ============================================================================
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url')?.value.trim();
@@ -404,12 +404,12 @@ async function importMatchViaId() {
   const matchIdRegex = /(\d+)/;
   const match = input.match(matchIdRegex);
   if (!match) {
-    alert("Could not extract a valid match numeric ID!");
+    alert("Could not parse a numerical Match ID configuration.");
     return;
   }
   
   const matchId = match[1];
-  sync('Scanning match cluster...');
+  sync('Requesting match data...');
 
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
@@ -426,6 +426,7 @@ async function importMatchViaId() {
 
     const payload = result.match;
 
+    // Recursive parsing search algorithm
     function findPlayersArray(obj) {
       if (!obj || typeof obj !== 'object') return null;
       if (Array.isArray(obj.players)) return obj.players;
@@ -452,7 +453,7 @@ async function importMatchViaId() {
     }
 
     const playersInMatch = findPlayersArray(payload);
-    if (!playersInMatch) throw new Error("Could not parse player metrics array.");
+    if (!playersInMatch) throw new Error("Could not map player array inside JSON tree structure.");
 
     const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
     const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
@@ -469,20 +470,23 @@ async function importMatchViaId() {
     let databaseUploadPromises = [];
     let discoveredNames = [];
 
-    // Pure dynamic ingest lookup pass
+    // STABILIZED INGESTION ITERATOR PASS
     for (const pData of playersInMatch) {
-      const accountIdNum = pData.account_id || pData.player_id;
-      if (!accountIdNum) continue;
-      
-      const idStr = String(accountIdNum).trim();
-      if (!STEAM_MAPPING[idStr]) continue;
+      // Safely access either potential telemetry keys
+      const rawId = pData.account_id !== undefined ? pData.account_id : pData.player_id;
+      if (rawId === undefined || rawId === null) continue;
 
+      // Type-agnostic evaluation check logic
+      const idStr = String(rawId).trim();
       const squadMember = STEAM_MAPPING[idStr];
+      
+      if (!squadMember) continue; // Skip unregistered users dynamically
+
       discoveredNames.push(squadMember.name);
 
-      // RESOLVE DIRECT TELEMETRY DATA MATRIX WITHOUT EXCEPTIONS
+      // Map Hero strings dynamically from telemetry payload
       const heroId = Number(pData.hero_id);
-      const heroName = HERO_IDS[heroId] || `Hero ID: ${heroId}`;
+      const heroName = HERO_IDS[heroId] || `Unknown (${heroId})`;
 
       const record = {
         player: squadMember.name,
@@ -498,8 +502,8 @@ async function importMatchViaId() {
     }
 
     if (databaseUploadPromises.length === 0) {
-      sync('Registry mapping footprint missing.');
-      alert('Match parsed successfully, but your local setup table does not register any of the account IDs found in this match.');
+      sync('Registry lookup footprint missed target accounts.');
+      alert('Match loaded correctly, but none of your registered account IDs matched players found in this session payload.');
       return;
     }
 
@@ -511,13 +515,13 @@ async function importMatchViaId() {
 
   } catch (e) {
     console.error(e);
-    sync('Import pipeline error');
-    alert('Match fetch failed: ' + e.message);
+    sync('Fetch pipeline failed');
+    alert('Match parse crash exception: ' + e.message);
   }
 }
 
 // ============================================================================
-// DATA LAYOUT RENDERING SUITE
+// SYSTEM DATA VIEW LAYOUT RENDERING SUITE
 // ============================================================================
 function renderAll() {
   allMatches.sort((a, b) => {
@@ -592,7 +596,7 @@ function renderCharts() {
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false}},
       scales:{x:{grid:{display:false},ticks:{color:'#7a7f8e'}},
-              y:{beginAtZero:true,ticks:{stepSize:1,color:'#7a7f8e'},grid:{color:'rgba(255,255,255,0.05)'}}}}
+              y:{beginAtZero:true,ticks:{stepSize:1,color:'#7a7f8e'},grid:{color='rgba(255,255,255,0.05)'}}}}
   });
 
   const sorted = [...allMatches].sort((a,b)=>a.id-b.id);
