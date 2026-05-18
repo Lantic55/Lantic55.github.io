@@ -55,10 +55,15 @@ header h1 { font-size: 17px; font-weight: 500; }
 .player-card .pstat { font-size: 11px; color: var(--muted); line-height: 1.9; font-family: var(--mono); }
 
 .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0.75rem; flex-wrap: wrap; }
 .chart-box .clbl { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
 .chart-wrap { position: relative; height: 200px; }
 .legend { display: flex; gap: 12px; font-size: 11px; color: var(--muted); margin-bottom: 8px; flex-wrap: wrap; }
 .ldot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 3px; vertical-align: middle; }
+.segmented { display: inline-flex; align-items: center; border: 1px solid var(--border2); border-radius: var(--r); background: var(--surface); padding: 2px; }
+.seg-btn { min-width: 58px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-family: var(--font); font-size: 12px; padding: 4px 10px; }
+.seg-btn:hover { color: var(--text); }
+.seg-btn.active { background: var(--accent-d); color: #fff; }
 
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .log-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -166,10 +171,16 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
   </div>
 
   <div class="section">
-    <div class="section-label">Charts</div>
+    <div class="chart-head">
+      <div class="section-label" style="margin-bottom:0">Charts</div>
+      <div class="segmented" aria-label="Chart account filter">
+        <button class="seg-btn active" id="chart-main-btn" type="button" onclick="setChartAccount('main')">Main</button>
+        <button class="seg-btn" id="chart-alt-btn" type="button" onclick="setChartAccount('alt')">Alt</button>
+      </div>
+    </div>
     <div class="charts-row">
       <div class="card chart-box">
-        <div class="clbl">Today — wins vs losses per player</div>
+        <div class="clbl" id="today-chart-label">Today - wins vs losses per player</div>
         <div class="legend">
           <span><span class="ldot" style="background:#97C459"></span>Wins</span>
           <span><span class="ldot" style="background:#F09595"></span>Losses</span>
@@ -177,7 +188,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
         <div class="chart-wrap"><canvas id="todayChart" role="img" aria-label="Today's wins and losses per player">No data.</canvas></div>
       </div>
       <div class="card chart-box">
-        <div class="clbl">All sessions — cumulative wins &amp; losses</div>
+        <div class="clbl" id="total-chart-label">All sessions - cumulative wins &amp; losses</div>
         <div class="legend">
           <span><span class="ldot" style="background:#97C459"></span>Wins</span>
           <span><span class="ldot" style="background:#F09595"></span>Losses (dashed)</span>
@@ -308,6 +319,7 @@ const DEMO    = false;
 let me = localStorage.getItem('dl_me') || null;
 let allMatches = [], allLinks = [];
 let chartToday = null, chartTotal = null;
+let chartAccount = localStorage.getItem('dl_chart_account') || 'main';
 let noteTimer = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
@@ -493,6 +505,12 @@ async function enterMain() {
 
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
+function setChartAccount(account) {
+  chartAccount = account === 'alt' ? 'alt' : 'main';
+  localStorage.setItem('dl_chart_account', chartAccount);
+  renderCharts();
+}
+
 // ============================================================================
 // SOLIDIFIED DATA RENDERING SYSTEM
 // ============================================================================
@@ -555,7 +573,20 @@ function renderCards() {
 
 function renderCharts() {
   const t = today();
-  const tdm = allMatches.filter(x=>x.date===t || x.date === t.slice(5));
+  const accountMatches = allMatches.filter(x=>x.account===chartAccount);
+  const label = chartAccount === 'alt' ? 'Alt' : 'Main';
+  const mainBtn = document.getElementById('chart-main-btn');
+  const altBtn = document.getElementById('chart-alt-btn');
+  if (mainBtn && altBtn) {
+    mainBtn.classList.toggle('active', chartAccount === 'main');
+    altBtn.classList.toggle('active', chartAccount === 'alt');
+  }
+  const todayLabel = document.getElementById('today-chart-label');
+  const totalLabel = document.getElementById('total-chart-label');
+  if (todayLabel) todayLabel.textContent = `Today - ${label} wins vs losses per player`;
+  if (totalLabel) totalLabel.textContent = `${label} sessions - cumulative wins & losses`;
+
+  const tdm = accountMatches.filter(x=>x.date===t || x.date === t.slice(5));
   const tw = PLAYERS.map(p=>tdm.filter(x=>x.player===p&&x.result==='win').length);
   const tl = PLAYERS.map(p=>tdm.filter(x=>x.player===p&&x.result==='loss').length);
 
@@ -572,7 +603,7 @@ function renderCharts() {
               y:{beginAtZero:true,ticks:{stepSize:1,color:'#7a7f8e'},grid:{color:'rgba(255,255,255,0.05)'}}}}
   });
 
-  const sorted = [...allMatches].sort((a,b)=>a.id-b.id);
+  const sorted = [...accountMatches].sort((a,b)=>a.id-b.id);
   const byDate = {}; let cw=0,cl=0;
   for (const m of sorted) {
     if(m.result==='win')cw++;else cl++;
