@@ -661,7 +661,7 @@ const HERO_IDS = {
   61: "Rem", 62: "Drifter", 63: "Venator", 64: "Vyper", 65: "Paige"
 };
 
-// ── SQUAD AUTO-FETCH MATCH PIPELINE (METADATA ARRAY PARSER) ──────────────
+// ── SQUAD AUTO-FETCH MATCH PIPELINE (FINALIZED JSON SCHEMA) ──────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -707,47 +707,42 @@ async function importMatchViaId() {
 
       if (!result.success) throw new Error(result.error);
 
-      const metadata = result.match;
-      console.log("Raw match payload received:", metadata);
+      const payload = result.match;
+      console.log("Raw match payload received:", payload);
 
-      // Deep scan all potential nested layers where the player telemetry list resides
-      const playersInMatch = metadata.players || 
-                             metadata.player_stats || 
-                             metadata.player_metadata || 
-                             metadata.players_data ||
-                             (metadata.match && (metadata.match.players || metadata.match.player_stats));
+      // Target the exact structure returned by api.deadlock-api.com/v1/matches/{id}/metadata
+      const matchObj = payload.match || payload;
+      const playersInMatch = matchObj.players || matchObj.player_stats;
                              
       if (!playersInMatch || !Array.isArray(playersInMatch)) {
-        throw new Error("Match data loaded successfully, but the player details array is hidden under an unrecognized property name. Check your browser console to inspect the object variables.");
+        throw new Error("Match data loaded successfully, but the player details array is hidden under an unrecognized property name.");
       }
 
-      const duration = metadata.match_duration_s || metadata.duration_s || (metadata.match && metadata.match.duration_s) || 0;
+      const duration = matchObj.match_duration_s || matchObj.duration_s || 0;
       const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
       
-      const winningTeam = metadata.winning_team !== undefined ? metadata.winning_team : (metadata.match && metadata.match.winning_team); 
+      // 2 = Amber, 3 = Sapphire
+      const winningTeam = matchObj.winning_team; 
 
       let databaseUploadPromises = [];
       let discoveredNames = [];
 
       for (const pData of playersInMatch) {
-        // Safe check for 32-bit Account ID variations
-        const scannedId = String(pData.account_id || pData.player_id || pData.steam_id || pData.steamid32);
+        const scannedId = String(pData.account_id || pData.player_id || pData.steam_id);
         
         if (STEAM_MAPPING[scannedId]) {
           const squadMember = STEAM_MAPPING[scannedId];
           discoveredNames.push(`${squadMember.name} (${squadMember.account})`);
           
           const heroId = pData.hero_id;
-          const heroName = HERO_IDS[heroId] || `Unknown Hero: ${heroId}`;
+          const heroName = HERO_IDS[heroId] || `Hero ID: ${heroId}`;
           
-          // Win/Loss Calculation
+          // Determine win/loss status relative to the team assignment
           let calculatedResult = "win";
-          if (pData.won !== undefined) {
-            calculatedResult = pData.won ? "win" : "loss";
-          } else if (pData.team !== undefined && winningTeam !== undefined) {
+          if (pData.team !== undefined && winningTeam !== undefined) {
             calculatedResult = (pData.team === winningTeam) ? "win" : "loss";
-          } else if (pData.result !== undefined) {
-            calculatedResult = String(pData.result).toLowerCase().includes('win') ? "win" : "loss";
+          } else if (pData.won !== undefined) {
+            calculatedResult = pData.won ? "win" : "loss";
           }
 
           const record = {
@@ -755,7 +750,7 @@ async function importMatchViaId() {
             account: squadMember.account,
             result: calculatedResult,
             hero: heroName,
-            date: metadata.start_time ? metadata.start_time.slice(0, 10) : today(),
+            date: matchObj.start_time ? matchObj.start_time.slice(0, 10) : today(),
             note: `Auto-Fetched | Duration: ${durationStr}`,
             match_id: matchId
           };
