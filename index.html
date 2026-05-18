@@ -326,7 +326,6 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
 <script>
 const SUPABASE_URL = 'https://ezzqccgyhndzfwtzejzw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6enFjY2d5aG5kemZ3dHplanp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMTUxMzcsImV4cCI6MjA5NDY5MTEzN30.GMaX7zVf-NuwlGG17kWwu3Bf_YsXRQgax73gpy_BBUI';
-const DEMO = false;
 
 const PLAYERS = ['Lantic','Neel','Ollie','Wren'];
 const COLORS  = { Lantic:'#7F77DD', Neel:'#1D9E75', Ollie:'#D85A30', Wren:'#D4537E' };
@@ -364,12 +363,17 @@ async function putNotes(content) {
   else await sb('notes', { method:'POST', body: JSON.stringify({ content }) });
 }
 
-// ── INIT RUNTIME ───────────────────────────────────────────────────────────
+// ── SETUP SCREEN / ACCOUNT SWITCH INITIALIZATION ───────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   if (me) enterMain();
 });
 
-function selectPlayer(p) { me = p; localStorage.setItem('dl_me', p); enterMain(); }
+function selectPlayer(p) { 
+  me = p; 
+  localStorage.setItem('dl_me', p); 
+  enterMain(); 
+}
+
 function switchPlayer() {
   document.getElementById('main-screen').style.display = 'none';
   document.getElementById('setup-screen').style.display = 'flex';
@@ -602,4 +606,257 @@ function renderRecent() {
       <span class="pill ${m.account}">${m.account}</span>
       ${m.hero?`<span style="font-size:12px; font-weight:500;">${m.hero}</span>`:''}
       ${m.duration?`<span class="pill main">${m.duration}</span>`:''}
-      ${m.note?`<span
+      ${m.note?`<span style="font-size:12px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.note}</span>`:'<span style="flex:1"></span>'}
+      <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">${m.date.slice(5)}</span>
+    </div>`).join('');
+}
+
+function renderHistory() {
+  const fp=document.getElementById('f-player').value;
+  const fa=document.getElementById('f-account').value;
+  const fr=document.getElementById('f-result').value;
+  const fh=(document.getElementById('f-hero').value||'').toLowerCase();
+  let rows=[...allMatches].sort((a,b)=>b.id-a.id);
+  if(fp!=='all')rows=rows.filter(x=>x.player===fp);
+  if(fa!=='all')rows=rows.filter(x=>x.account===fa);
+  if(fr!=='all')rows=rows.filter(x=>x.result===fr);
+  if(fh)rows=rows.filter(x=>(x.hero||'').toLowerCase().includes(fh));
+  const body=document.getElementById('history-body');
+  const empty=document.getElementById('history-empty');
+  if(!rows.length){body.innerHTML='';empty.style.display='';return;}
+  empty.style.display='none';
+  body.innerHTML=rows.map((m,i)=>`
+    <tr id="match-row-${m.id}" class="${selectedMatchRowId === m.id ? 'selected' : ''}" onclick="selectMatchRow(${m.id})">
+      <td style="color:var(--hint);font-family:var(--mono)">${rows.length-i}</td>
+      <td style="font-family:var(--mono);font-size:12px">${m.date.slice(5)}</td>
+      <td><span class="pill ${m.player}">${m.player}</span></td>
+      <td><span class="pill ${m.account}">${m.account}</span></td>
+      <td><span class="pill ${m.result}">${m.result}</span></td>
+      <td style="font-size:12px; font-weight:500;">${m.hero||'—'}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${m.match_id||'—'}</td>
+      <td style="font-family:var(--mono);font-size:11px">${m.duration||'—'}</td>
+      <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${m.note||''}</td>
+      <td><button class="btn danger" onclick="removeMatch(event, ${m.id})">✕</button></td>
+    </tr>`).join('');
+}
+
+function renderLinks() {
+  const el=document.getElementById('link-list');
+  if(!allLinks.length){el.innerHTML='<p class="empty-state">No links yet.</p>';return;}
+  el.innerHTML=allLinks.map(l=>`
+    <div class="link-item">
+      <div style="display:flex;align-items:center;gap:8px;overflow:hidden;flex:1">
+        <a href="${l.url}" target="_blank" rel="noopener">${l.url.length>44?l.url.slice(0,41)+'…':l.url}</a>
+        ${l.tag?`<span class="link-tag">${l.tag}</span>`:''}
+        ${l.added_by?`<span style="font-size:11px;color:var(--hint)">${l.added_by}</span>`:''}
+      </div>
+      <button class="btn danger" onclick="removeLink(${l.id})">✕</button>
+    </div>`).join('');
+}
+
+// ── MATCH SELECTION & REVIEW REGION ────────────────────────────────────────
+function selectMatchRow(id) {
+  selectedMatchRowId = id;
+  const matchObj = allMatches.find(x => x.id === id);
+  
+  document.querySelectorAll('#history-body tr').forEach(r => r.classList.remove('selected'));
+  const rowElement = document.getElementById(`match-row-${id}`);
+  if (rowElement) rowElement.classList.add('selected');
+
+  const box = document.getElementById('match-review-box');
+  const txt = document.getElementById('match-review-text');
+  const lbl = document.getElementById('review-box-title');
+
+  lbl.textContent = `Reviewing Match #${matchObj.match_id || matchObj.id} (${matchObj.player} as ${matchObj.hero || 'Unknown'})`;
+  txt.value = matchObj.match_notes || '';
+  box.style.display = 'block';
+}
+
+async function saveMatchReview() {
+  if (!selectedMatchRowId) return;
+  const reviewContent = document.getElementById('match-review-text').value.trim();
+  const btn = document.getElementById('review-save-btn');
+  
+  btn.textContent = 'Saving...';
+  sync('Saving review...');
+  
+  try {
+    await patchMatch(selectedMatchRowId, { match_notes: reviewContent });
+    const localIdx = allMatches.findIndex(x => x.id === selectedMatchRowId);
+    if (localIdx !== -1) allMatches[localIdx].match_notes = reviewContent;
+    sync('Review saved!');
+    btn.textContent = 'Saved!';
+    setTimeout(() => { btn.textContent = 'Save Performance Notes'; }, 1500);
+  } catch(e) {
+    sync('Save failed');
+    btn.textContent = 'Error';
+  }
+}
+
+// ── MANUAL DATA MANAGEMENT OPERATIONS ──────────────────────────────────────
+async function logMatch() {
+  sync('Logging match...');
+  const record = {
+    player: document.getElementById('log-player').value,
+    account: document.getElementById('log-account').value,
+    result: document.getElementById('log-result').value,
+    hero: document.getElementById('log-hero').value.trim(),
+    date: document.getElementById('log-date').value || today(),
+    duration: document.getElementById('log-duration').value.trim() || null,
+    match_id: document.getElementById('log-match-id').value.trim() || null,
+    note: document.getElementById('log-note').value.trim()
+  };
+
+  try {
+    const r = await postMatch(record);
+    allMatches.push(r[0]);
+    document.getElementById('log-hero').value = '';
+    document.getElementById('log-duration').value = '';
+    document.getElementById('log-match-id').value = '';
+    document.getElementById('log-note').value = '';
+    sync('Logged successfully');
+    renderAll();
+  } catch(e) {
+    sync('Error logging');
+    alert(e.message);
+  }
+}
+
+async function removeMatch(event, id) {
+  if (event && event.stopPropagation) event.stopPropagation();
+  if (!confirm('Delete this match row?')) return;
+  sync('Deleting match...');
+  try {
+    await delMatch(id);
+    allMatches = allMatches.filter(x=>x.id!==id);
+    if (selectedMatchRowId === id) {
+      selectedMatchRowId = null;
+      document.getElementById('match-review-box').style.display = 'none';
+    }
+    sync('Deleted');
+    renderAll();
+  } catch(e) { sync('Delete failed: '+e.message); }
+}
+
+// ── STATLOCKER CLIENT-SIDE WEB SCRAPER ─────────────────────────────────────
+async function importStatlocker() {
+  const urlVal = document.getElementById('statlocker-url').value.trim();
+  if (!urlVal) return alert('Please enter a valid Statlocker matches URL segment');
+  
+  const segments = urlVal.split('/');
+  const matchIdIndex = segments.indexOf('matches');
+  if (matchIdIndex === -1 || !segments[matchIdIndex + 1]) {
+    return alert('Could not parse out the Match ID token from your configuration link structure.');
+  }
+  
+  const extractedMatchId = segments[matchIdIndex + 1];
+  sync('Fetching match data matrix...');
+  
+  try {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlVal)}`;
+    const resp = await fetch(proxyUrl);
+    if (!resp.ok) throw new Error('CORS gateway lookup network error');
+    
+    const container = await resp.json();
+    const rawHtml = container.contents;
+    
+    // Parse baseline match results
+    let detectedResult = 'win';
+    if (rawHtml.toLowerCase().includes('defeat') || rawHtml.toLowerCase().includes('lost')) {
+      detectedResult = 'loss';
+    }
+    
+    // Extract Game Duration Time configurations
+    let gameDuration = null;
+    const timeRegex = /(\d{1,2}:\d{2})/;
+    const durationMatch = rawHtml.match(timeRegex);
+    if (durationMatch) gameDuration = durationMatch[1];
+    
+    // Scrape Hero Context Identity profiling targets
+    const knownHeroes = [
+      'Abrams', 'Bebop', 'Dynamo', 'Grey Thorn', 'Haze', 'Infernus', 'Ivy', 'Kelvin',
+      'Lash', 'McGinnis', 'Mo & Krill', 'Paradox', 'Pocket', 'Seven', 'Shiv', 
+      'Vindicta', 'Viscous', 'Warden', 'Wraith', 'Yamato', 'Mirage'
+    ];
+    let detectedHero = '';
+    for (const h of knownHeroes) {
+      if (rawHtml.includes(h)) { detectedHero = h; break; }
+    }
+    
+    const accountContext = document.getElementById('log-account').value;
+    const recordObj = {
+      player: me,
+      account: accountContext,
+      result: detectedResult,
+      hero: detectedHero || null,
+      date: today(),
+      duration: gameDuration,
+      match_id: extractedMatchId,
+      note: 'Imported via Statlocker'
+    };
+    
+    const res = await postMatch(recordObj);
+    allMatches.push(res[0]);
+    
+    document.getElementById('statlocker-url').value = '';
+    sync(`Successfully Scraped ${detectedHero || 'Match'}!`);
+    renderAll();
+  } catch(e) {
+    console.error(e);
+    sync('Scraper node error');
+    alert('Scraper execution failure: ' + e.message);
+  }
+}
+
+// ── UTILITIES & TEAM NOTES AUTOSAVE ────────────────────────────────────────
+function queueNoteSave() {
+  document.getElementById('notes-status').textContent = 'Typing...';
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(async () => {
+    try {
+      await putNotes(document.getElementById('notes').value);
+      document.getElementById('notes-status').textContent = 'All changes saved to Supabase';
+    } catch(e) { document.getElementById('notes-status').textContent = 'Autosave error'; }
+  }, 1000);
+}
+
+async function addLink() {
+  const url = document.getElementById('link-url').value.trim();
+  const tag = document.getElementById('link-tag').value.trim();
+  if(!url) return;
+  sync('Adding link…');
+  try {
+    const r = await postLink({ url, tag, added_by: me });
+    allLinks.push(r[0]);
+    document.getElementById('link-url').value = '';
+    document.getElementById('link-tag').value = '';
+    sync(''); renderLinks();
+  } catch(e) { sync('Error: '+e.message); }
+}
+
+async function removeLink(id) {
+  sync('Removing link…');
+  try {
+    await delLink(id);
+    allLinks = allLinks.filter(x=>x.id!==id);
+    sync(''); renderLinks();
+  } catch(e) { sync('Error: '+e.message); }
+}
+
+function exportCSV() {
+  if (!allMatches.length) return alert('No data available');
+  let csv = 'ID,Date,Player,Account,Result,Hero,MatchID,Duration,Notes,Review\n';
+  allMatches.forEach(m => {
+    csv += `"${m.id}","${m.date}","${m.player}","${m.account}","${m.result}","${m.hero||''}","${m.match_id||''}","${m.duration||''}","${(m.note||'').replace(/"/g, '""')}","${(m.match_notes||'').replace(/"/g, '""')}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.setAttribute('download', `deadlock_tracker_export.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+</script>
+</body>
+</html>
