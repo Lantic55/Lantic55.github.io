@@ -631,26 +631,34 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
-// 1. ALL REAL TEAM STEAM/ACCOUNT ID MAPS (Main + Alts)
+// 1. DUAL-FORMAT ID MATRIX (Maps both 32-bit and 64-bit formats for safety)
 const STEAM_MAPPING = {
   // Neel
-  "99197018":   { name: "Neel",   account: "main" }, // 76561198259462746
-  "1763067640": { name: "Neel",   account: "alt" },  // 76561199823633368
+  "99197018":          { name: "Neel",   account: "main" },
+  "76561198259462746": { name: "Neel",   account: "main" },
+  "1763067640":        { name: "Neel",   account: "alt" },
+  "76561199823633368": { name: "Neel",   account: "alt" },
   
   // Lantic
-  "1123931349": { name: "Lantic", account: "main" }, // 76561199084197077
-  "1084153183": { name: "Lantic", account: "alt" },  // 76561199044218911
+  "1123931349":        { name: "Lantic", account: "main" },
+  "76561199084197077": { name: "Lantic", account: "main" },
+  "1084153183":        { name: "Lantic", account: "alt" },
+  "76561199044218911": { name: "Lantic", account: "alt" },
 
   // Wren
-  "341257912":  { name: "Wren",   account: "main" }, // itsrogy
-  "733708696":  { name: "Wren",   account: "alt" },  // 76561198793674424
+  "341257912":         { name: "Wren",   account: "main" },
+  "76561198301523640": { name: "Wren",   account: "main" }, // Conversions for vanity names
+  "733708696":         { name: "Wren",   account: "alt" },
+  "76561198793674424": { name: "Wren",   account: "alt" },
 
   // Ollie
-  "426425114":  { name: "Ollie",  account: "main" }, // Oleander_
-  "651018694":  { name: "Ollie",  account: "alt" }   // 76561198711248422
+  "426425114":         { name: "Ollie",  account: "main" },
+  "76561198386690842": { name: "Ollie",  account: "main" }, // Conversions for vanity names
+  "651018694":         { name: "Ollie",  account: "alt" },
+  "76561198711248422": { name: "Ollie",  account: "alt" }
 };
 
-// 2. COMPREHENSIVE HERO ROSTER (UP TO THE NEWEST RELEASES)
+// 2. HERO ID MATRIX
 const HERO_IDS = {
   1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 6: "Apollo", 
   7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 10: "Seven", 11: "Lash", 
@@ -661,7 +669,7 @@ const HERO_IDS = {
   61: "Rem", 62: "Drifter", 63: "Venator", 64: "Vyper", 65: "Paige"
 };
 
-// ── ROBUST AUTO-FETCH ENGINE (DEEP EXTRACTION) ───────────────────────────
+// ── ROBUST MULTI-USER AUTO-FETCH ENGINE ───────────────────────────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -674,7 +682,6 @@ async function importMatchViaId() {
   }
   
   const matchId = match[1];
-  
   const MAX_ATTEMPTS = 4; 
   const DELAY_MS = 15000; 
 
@@ -710,16 +717,13 @@ async function importMatchViaId() {
       const payload = result.match;
       console.log("Raw match payload received:", payload);
 
-      // HELPER: Deep search function to scan the payload for our player array
+      // Deep search function to pull out players array wherever it resides
       function findPlayersArray(obj) {
         if (!obj || typeof obj !== 'object') return null;
-        
-        // If this current object layer has an explicit array of players/player_stats
         if (Array.isArray(obj.players)) return obj.players;
         if (Array.isArray(obj.player_stats)) return obj.player_stats;
         if (Array.isArray(obj.players_data)) return obj.players_data;
         
-        // Loop down through nested properties to search deeper
         for (let key in obj) {
           if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
             const found = findPlayersArray(obj[key]);
@@ -729,7 +733,6 @@ async function importMatchViaId() {
         return null;
       }
 
-      // HELPER: Deep search for numeric properties (duration, winning team)
       function findKeyDeep(obj, keyName) {
         if (!obj || typeof obj !== 'object') return null;
         if (obj[keyName] !== undefined) return obj[keyName];
@@ -745,31 +748,47 @@ async function importMatchViaId() {
       const playersInMatch = findPlayersArray(payload);
                              
       if (!playersInMatch) {
-        throw new Error("Match data loaded successfully, but the player data block couldn't be extracted. Check the console log structure.");
+        throw new Error("Match data loaded successfully, but the player data array is missing.");
       }
 
-      // Dig out match stats dynamically
       const duration = findKeyDeep(payload, 'match_duration_s') || findKeyDeep(payload, 'duration_s') || 0;
       const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
-      
       const winningTeam = findKeyDeep(payload, 'winning_team') || findKeyDeep(payload, 'winning_team_id');
       const startTime = findKeyDeep(payload, 'start_time');
 
       let databaseUploadPromises = [];
       let discoveredNames = [];
 
-      // Execute row creation for every team member caught in the match
+      // Loop through all data objects inside the match lobby
       for (const pData of playersInMatch) {
-        const scannedId = String(pData.account_id || pData.player_id || pData.steam_id || pData.steamid32);
+        // Collect every conceivable property naming variant for IDs
+        const idOptions = [
+          pData.account_id, 
+          pData.player_id, 
+          pData.steam_id, 
+          pData.steamid,
+          pData.steamid64,
+          pData.user_id
+        ].filter(val => val !== undefined && val !== null);
+
+        let squadMember = null;
         
-        if (STEAM_MAPPING[scannedId]) {
-          const squadMember = STEAM_MAPPING[scannedId];
+        // Check if any variant matches our database mapping keys
+        for (let option of idOptions) {
+          const strOption = String(option).trim();
+          if (STEAM_MAPPING[strOption]) {
+            squadMember = STEAM_MAPPING[strOption];
+            break;
+          }
+        }
+
+        // If a friend is caught in this lobby loop sequence, process their data row entry
+        if (squadMember) {
           discoveredNames.push(`${squadMember.name} (${squadMember.account})`);
           
           const heroId = pData.hero_id;
           const heroName = HERO_IDS[heroId] || `Hero ID: ${heroId}`;
           
-          // Win/Loss State Parser
           let calculatedResult = "win";
           if (pData.won !== undefined) {
             calculatedResult = pData.won ? "win" : "loss";
@@ -779,7 +798,6 @@ async function importMatchViaId() {
             calculatedResult = String(pData.result).toLowerCase().includes('win') ? "win" : "loss";
           }
 
-          // Setup database insertion target values
           const record = {
             player: squadMember.name,
             account: squadMember.account,
@@ -790,21 +808,22 @@ async function importMatchViaId() {
             match_id: matchId
           };
 
-          // Send data row straight to your storage endpoint
+          // Queue parallel row records into your Supabase database array table
           databaseUploadPromises.push(postMatch(record));
         }
       }
 
       if (databaseUploadPromises.length === 0) {
         sync('Fetch complete.');
-        alert(`Match data loaded perfectly, but none of your squad's registered IDs were found in this match lobby.`);
+        console.log("Inspected player object array keys for reference:", playersInMatch);
+        alert(`Match records parsed successfully, but still none of your squad's registered IDs matched the player data properties in this lobby array. Let's look at the raw console logs.`);
         return;
       }
 
-      // Simultaneously submit entries for everyone in the match row
+      // Execute all row insertions simultaneously to update every user together!
       const uploadedRecords = await Promise.all(databaseUploadPromises);
       
-      // Update local array data state
+      // Merge results into local live dashboard array data state
       uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
       
       sync(`Logged match data for: ${discoveredNames.join(', ')}`);
