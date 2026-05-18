@@ -661,7 +661,7 @@ const HERO_IDS = {
   61: "Rem", 62: "Drifter", 63: "Venator", 64: "Vyper", 65: "Paige"
 };
 
-// ── SQUAD AUTO-FETCH MATCH PIPELINE (WITH AUTO-RETRY) ──────────────────
+// ── SQUAD AUTO-FETCH MATCH PIPELINE (METADATA ARRAY PARSER) ──────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -675,9 +675,8 @@ async function importMatchViaId() {
   
   const matchId = match[1];
   
-  // Retry loop limits
   const MAX_ATTEMPTS = 4; 
-  const DELAY_MS = 25000; // 25 seconds loop window
+  const DELAY_MS = 15000; 
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     sync(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying (Attempt ${attempt}/${MAX_ATTEMPTS})`);
@@ -694,15 +693,13 @@ async function importMatchViaId() {
 
       const result = await response.json();
       
-      // If the API hasn't generated the match file yet (404 status returned)
       if (!result.success && result.status === 404) {
         if (attempt < MAX_ATTEMPTS) {
-          // Visual countdown effect
           for (let sec = DELAY_MS / 1000; sec > 0; sec--) {
             sync(`Match not processed by Valve yet. Retrying in ${sec}s...`);
             await new Promise(r => setTimeout(r, 1000));
           }
-          continue; // Go to the next iteration loop
+          continue; 
         } else {
           throw new Error("Match data is still unavailable on the cluster. Give it a minute and try again.");
         }
@@ -713,19 +710,27 @@ async function importMatchViaId() {
       const metadata = result.match;
       console.log("Raw match payload received:", metadata);
 
-      const playersInMatch = metadata.players || metadata.player_stats || metadata.player_metadata || metadata.players_data;
+      // Deep scan all potential nested layers where the player telemetry list resides
+      const playersInMatch = metadata.players || 
+                             metadata.player_stats || 
+                             metadata.player_metadata || 
+                             metadata.players_data ||
+                             (metadata.match && (metadata.match.players || metadata.match.player_stats));
+                             
       if (!playersInMatch || !Array.isArray(playersInMatch)) {
-        throw new Error("Match data loaded, but player details array is missing.");
+        throw new Error("Match data loaded successfully, but the player details array is hidden under an unrecognized property name. Check your browser console to inspect the object variables.");
       }
 
-      const duration = metadata.match_duration_s || metadata.duration_s || 0;
+      const duration = metadata.match_duration_s || metadata.duration_s || (metadata.match && metadata.match.duration_s) || 0;
       const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
-      const winningTeam = metadata.winning_team !== undefined ? metadata.winning_team : metadata.winning_team_id; 
+      
+      const winningTeam = metadata.winning_team !== undefined ? metadata.winning_team : (metadata.match && metadata.match.winning_team); 
 
       let databaseUploadPromises = [];
       let discoveredNames = [];
 
       for (const pData of playersInMatch) {
+        // Safe check for 32-bit Account ID variations
         const scannedId = String(pData.account_id || pData.player_id || pData.steam_id || pData.steamid32);
         
         if (STEAM_MAPPING[scannedId]) {
@@ -733,8 +738,9 @@ async function importMatchViaId() {
           discoveredNames.push(`${squadMember.name} (${squadMember.account})`);
           
           const heroId = pData.hero_id;
-          const heroName = HERO_IDS[heroId] || `Unknown Hero ID: ${heroId}`;
+          const heroName = HERO_IDS[heroId] || `Unknown Hero: ${heroId}`;
           
+          // Win/Loss Calculation
           let calculatedResult = "win";
           if (pData.won !== undefined) {
             calculatedResult = pData.won ? "win" : "loss";
@@ -760,7 +766,7 @@ async function importMatchViaId() {
 
       if (databaseUploadPromises.length === 0) {
         sync('Fetch complete.');
-        alert(`Match data loaded, but none of your squad's verified Account IDs were found in this match lobby list.`);
+        alert(`Match records loaded perfectly, but none of your squad's registered IDs were found in this specific game lobby.`);
         return;
       }
 
@@ -769,7 +775,7 @@ async function importMatchViaId() {
       
       sync(`Logged match data for: ${discoveredNames.join(', ')}`);
       renderAll();
-      return; // Success! Break out of the function entirely.
+      return; 
 
     } catch (e) {
       console.error(e);
