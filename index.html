@@ -197,6 +197,25 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
 
   <div class="section">
     <div class="section-label">Log a match</div>
+	<div class="card" style="margin-bottom:1rem">
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <input
+      type="text"
+      id="statlocker-url"
+      placeholder="Paste Statlocker match URL..."
+      style="flex:1; min-width:240px"
+    />
+
+    <button class="btn primary" onclick="importStatlocker()">
+      Import match
+    </button>
+  </div>
+
+  <p style="font-size:11px; color:var(--muted); margin-top:8px">
+    Example:
+    https://statlocker.gg/profile/1123931349/matches/83126606/summary
+  </p>
+</div>
     <div class="card log-grid">
       <div class="log-form">
         <div class="field">
@@ -579,77 +598,79 @@ function renderLinks() {
 }
 
 // ── ACTIONS ────────────────────────────────────────────────────────────────
-async function logMatch() {
-  const match = {
-    player:  document.getElementById('log-player').value,
-    account: document.getElementById('log-account').value,
-    result:  document.getElementById('log-result').value,
-    hero:    document.getElementById('log-hero').value.trim(),
-    date:    document.getElementById('log-date').value||today(),
-    note:    document.getElementById('log-note').value.trim(),
-  };
-  if (DEMO) {
-    allMatches.push({id: Math.max(0,...allMatches.map(x=>x.id))+1, ...match});
-  } else {
-    sync('Saving…');
-    try { const r=await postMatch(match); allMatches.push(r[0]); sync(''); }
-    catch(e) { sync('Error: '+e.message); return; }
+async function importStatlocker() {
+      'Paradox','Pocket','Seven','Shiv','Vindicta','Viscous',
+      'Warden','Wraith','Yamato','Mirage'
+    ];
+
+    let hero = '';
+
+    for (const h of heroList) {
+      if (html.includes(h)) {
+        hero = h;
+        break;
+      }
+    }
+
+    let duration = '';
+
+    const durationMatch = html.match(/(\d{1,2}:\d{2})/);
+
+    if (durationMatch) {
+      duration = durationMatch[1];
+    }
+
+    const teammates = [];
+
+    for (const [name, mapped] of Object.entries(accountMap)) {
+      if (html.includes(name)) {
+        teammates.push(mapped);
+      }
+    }
+
+    const uniqueTeammates = [...new Set(teammates)];
+
+    let note = 'Imported from Statlocker';
+
+    if (duration) {
+      note += ' • ' + duration;
+    }
+
+    if (uniqueTeammates.length) {
+      note += ' • Team: ' + uniqueTeammates.join(', ');
+    }
+
+    const record = {
+      player: detectedPlayer,
+      account: detectedAccount,
+      result,
+      hero,
+      date: today(),
+      note,
+      match_id: matchId,
+    };
+
+    if (DEMO) {
+      allMatches.push({
+        id: Math.max(0, ...allMatches.map(x => x.id)) + 1,
+        ...record,
+      });
+    } else {
+      const r = await postMatch(record);
+      allMatches.push(r[0]);
+    }
+
+    document.getElementById('statlocker-url').value = '';
+
+    renderAll();
+
+    sync(`Imported ${hero || 'match'} • ${result.toUpperCase()}`);
+
+  } catch (e) {
+    console.error(e);
+    sync('Import failed');
+    alert('Import failed: ' + e.message);
   }
-  document.getElementById('log-hero').value='';
-  document.getElementById('log-note').value='';
-  renderAll();
-}
-
-async function removeMatch(id) {
-  if (DEMO) { allMatches=allMatches.filter(x=>x.id!==id); }
-  else {
-    sync('Deleting…');
-    try { await delMatch(id); allMatches=allMatches.filter(x=>x.id!==id); sync(''); }
-    catch(e) { sync('Error: '+e.message); return; }
-  }
-  renderAll();
-}
-
-async function addLink() {
-  const url=document.getElementById('link-url').value.trim();
-  const tag=document.getElementById('link-tag').value.trim();
-  if (!url) return;
-  const rec={url,tag,added_by:me};
-  if (DEMO) { allLinks.push({id:Date.now(),...rec}); }
-  else {
-    sync('Saving…');
-    try { const r=await postLink(rec); allLinks.push(r[0]); sync(''); }
-    catch(e) { sync('Error: '+e.message); return; }
-  }
-  document.getElementById('link-url').value='';
-  document.getElementById('link-tag').value='';
-  renderLinks();
-}
-
-async function removeLink(id) {
-  if (DEMO) { allLinks=allLinks.filter(x=>x.id!==id); }
-  else { try { await delLink(id); allLinks=allLinks.filter(x=>x.id!==id); } catch(e){return;} }
-  renderLinks();
-}
-
-function queueNoteSave() {
-  document.getElementById('notes-status').textContent='Unsaved…';
-  clearTimeout(noteTimer);
-  noteTimer=setTimeout(async()=>{
-    if(DEMO){document.getElementById('notes-status').textContent='(demo — not saved)';return;}
-    try { await putNotes(document.getElementById('notes').value); document.getElementById('notes-status').textContent='Saved'; }
-    catch(e){document.getElementById('notes-status').textContent='Error saving';}
-  },1200);
-}
-
-function exportCSV() {
-  const rows=[['id','date','player','account','result','hero','note']];
-  for (const m of [...allMatches].sort((a,b)=>a.id-b.id))
-    rows.push([m.id,m.date,m.player,m.account,m.result,m.hero||'','"'+(m.note||'').replace(/"/g,'""')+'"']);
-  const a=document.createElement('a');
-  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(rows.map(r=>r.join(',')).join('\n'));
-  a.download='deadlock-matches.csv';
-  a.click();
 }
 </script>
 </body>
