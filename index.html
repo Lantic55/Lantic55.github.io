@@ -312,25 +312,22 @@ let noteTimer = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
 
-// EXPLICIT REGISTRY MAP (STRINGS FOR UNIVERSAL MATCH RESOLUTION)
+// 1. STABLE SQUAD MATRIX
 const STEAM_MAPPING = {
-  "1123931349": { name: "Lantic", account: "main" },
-  "1863367640": { name: "Lantic", account: "main" },
-  "1084153183": { name: "Lantic", account: "alt" },
-  
-  "176306764":  { name: "Neel",   account: "main" },
-  "99197018":   { name: "Neel",   account: "main" },
-  "1763067640": { name: "Neel",   account: "alt" },
-  
-  "426072791":  { name: "Ollie",  account: "main" },
-  "426425114":  { name: "Ollie",  account: "main" },
-  "651018694":  { name: "Ollie",  account: "alt" },
-
-  "833408696":  { name: "Wren",   account: "main" },
-  "733708696":  { name: "Wren",   account: "alt" }
+  "76811383":          { name: "Neel",   account: "main" },
+  "99197018":          { name: "Neel",   account: "main" },
+  "1763067640":        { name: "Neel",   account: "alt" },  
+  "1863367640":        { name: "Lantic", account: "main" },
+  "1123931349":        { name: "Lantic", account: "main" },
+  "1084153183":        { name: "Lantic", account: "alt" },  
+  "833408696":         { name: "Wren",   account: "main" },
+  "733708696":         { name: "Wren",   account: "alt" },  
+  "42607279":          { name: "Ollie",  account: "main" },
+  "426425114":         { name: "Ollie",  account: "main" },
+  "651018694":         { name: "Ollie",  account: "alt" }   
 };
 
-// DYNAMIC VALVE HERO CONFIGURATION DICTIONARY
+// 2. VALVE HERO LOOKUP MATRIX
 const HERO_IDS = {
   1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 
   6: "Apollo", 7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 
@@ -395,133 +392,7 @@ async function enterMain() {
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
 // ============================================================================
-// STABILIZED INGESTION RESOLVER ENGINE (ZERO FALLBACKS)
-// ============================================================================
-async function importMatchViaId() {
-  const input = document.getElementById('statlocker-url')?.value.trim();
-  if (!input) return;
-
-  const matchIdRegex = /(\d+)/;
-  const match = input.match(matchIdRegex);
-  if (!match) {
-    alert("Could not parse a numerical Match ID configuration.");
-    return;
-  }
-  
-  const matchId = match[1];
-  sync('Requesting match data...');
-
-  try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_KEY}`
-      },
-      body: JSON.stringify({ matchId: matchId })
-    });
-
-    const result = await response.json();
-    if (!result.success) throw new Error(result.error);
-
-    const payload = result.match;
-
-    // Recursive parsing search algorithm
-    function findPlayersArray(obj) {
-      if (!obj || typeof obj !== 'object') return null;
-      if (Array.isArray(obj.players)) return obj.players;
-      if (Array.isArray(obj.player_stats)) return obj.player_stats;
-      for (let key in obj) {
-        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
-          const found = findPlayersArray(obj[key]);
-          if (found) return found;
-        }
-      }
-      return null;
-    }
-
-    function findKeyDeep(obj, keyName) {
-      if (!obj || typeof obj !== 'object') return null;
-      if (obj[keyName] !== undefined) return obj[keyName];
-      for (let key in obj) {
-        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
-          const found = findKeyDeep(obj[key], keyName);
-          if (found !== null) return found;
-        }
-      }
-      return null;
-    }
-
-    const playersInMatch = findPlayersArray(payload);
-    if (!playersInMatch) throw new Error("Could not map player array inside JSON tree structure.");
-
-    const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
-    const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
-    
-    const startTimeRaw = findKeyDeep(payload, 'start_time');
-    let matchFormattedDate = today();
-    if (startTimeRaw) {
-      const matchDateObj = new Date(Number(startTimeRaw) * 1000);
-      const mm = String(matchDateObj.getMonth() + 1).padStart(2, '0');
-      const dd = String(matchDateObj.getDate()).padStart(2, '0');
-      matchFormattedDate = `${mm}-${dd}`;
-    }
-
-    let databaseUploadPromises = [];
-    let discoveredNames = [];
-
-    // STABILIZED INGESTION ITERATOR PASS
-    for (const pData of playersInMatch) {
-      // Safely access either potential telemetry keys
-      const rawId = pData.account_id !== undefined ? pData.account_id : pData.player_id;
-      if (rawId === undefined || rawId === null) continue;
-
-      // Type-agnostic evaluation check logic
-      const idStr = String(rawId).trim();
-      const squadMember = STEAM_MAPPING[idStr];
-      
-      if (!squadMember) continue; // Skip unregistered users dynamically
-
-      discoveredNames.push(squadMember.name);
-
-      // Map Hero strings dynamically from telemetry payload
-      const heroId = Number(pData.hero_id);
-      const heroName = HERO_IDS[heroId] || `Unknown (${heroId})`;
-
-      const record = {
-        player: squadMember.name,
-        account: squadMember.account,
-        result: "win", 
-        hero: heroName,
-        date: matchFormattedDate, 
-        note: `Auto-Fetched | Duration: ${durationStr}`,
-        match_id: matchId
-      };
-
-      databaseUploadPromises.push(postMatch(record));
-    }
-
-    if (databaseUploadPromises.length === 0) {
-      sync('Registry lookup footprint missed target accounts.');
-      alert('Match loaded correctly, but none of your registered account IDs matched players found in this session payload.');
-      return;
-    }
-
-    const uploadedRecords = await Promise.all(databaseUploadPromises);
-    uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
-    
-    sync(`Logged match data for: ${discoveredNames.join(', ')}`);
-    renderAll();
-
-  } catch (e) {
-    console.error(e);
-    sync('Fetch pipeline failed');
-    alert('Match parse crash exception: ' + e.message);
-  }
-}
-
-// ============================================================================
-// SYSTEM DATA VIEW LAYOUT RENDERING SUITE
+// SOLIDIFIED DATA RENDERING SYSTEM
 // ============================================================================
 function renderAll() {
   allMatches.sort((a, b) => {
@@ -596,7 +467,7 @@ function renderCharts() {
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false}},
       scales:{x:{grid:{display:false},ticks:{color:'#7a7f8e'}},
-              y:{beginAtZero:true,ticks:{stepSize:1,color:'#7a7f8e'},grid:{color='rgba(255,255,255,0.05)'}}}}
+              y:{beginAtZero:true,ticks:{stepSize:1,color:'#7a7f8e'},grid:{color:'rgba(255,255,255,0.05)'}}}}
   });
 
   const sorted = [...allMatches].sort((a,b)=>a.id-b.id);
@@ -717,6 +588,134 @@ function renderLinks() {
       </div>
       <button class="btn danger" onclick="removeLink(${l.id})">✕</button>
     </div>`).join('');
+}
+
+// ============================================================================
+// METICULOUSLY STABILIZED AUTOMATED INGESTION ENGINE
+// ============================================================================
+async function importMatchViaId() {
+  const input = document.getElementById('statlocker-url')?.value.trim();
+  if (!input) return;
+
+  const matchIdRegex = /(\d+)/;
+  const match = input.match(matchIdRegex);
+  if (!match) {
+    alert("Could not extract a valid numeric Match ID.");
+    return;
+  }
+  
+  const matchId = match[1];
+  sync('Scanning match cluster...');
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ matchId: matchId })
+    });
+
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || "Edge function failure response");
+
+    const payload = result.match;
+
+    // Deep tree mapping search engines
+    function findPlayersArray(obj) {
+      if (!obj || typeof obj !== 'object') return null;
+      if (Array.isArray(obj.players)) return obj.players;
+      if (Array.isArray(obj.player_stats)) return obj.player_stats;
+      for (let key in obj) {
+        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+          const found = findPlayersArray(obj[key]);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    function findKeyDeep(obj, keyName) {
+      if (!obj || typeof obj !== 'object') return null;
+      if (obj[keyName] !== undefined) return obj[keyName];
+      for (let key in obj) {
+        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+          const found = findKeyDeep(obj[key], keyName);
+          if (found !== null) return found;
+        }
+      }
+      return null;
+    }
+
+    const playersInMatch = findPlayersArray(payload);
+    if (!playersInMatch) throw new Error("Could not map player array inside JSON tree structure.");
+
+    const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
+    const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
+    
+    const startTimeRaw = findKeyDeep(payload, 'start_time');
+    let matchFormattedDate = today();
+    if (startTimeRaw) {
+      matchFormattedDate = new Date(Number(startTimeRaw) * 1000).toISOString().slice(0, 10);
+    }
+
+    const matchWinner = findKeyDeep(payload, 'match_winner') || findKeyDeep(payload, 'winning_team');
+    
+    let databaseUploadPromises = [];
+    let discoveredNames = [];
+
+    for (const pData of playersInMatch) {
+      const rawId = pData.account_id !== undefined ? pData.account_id : pData.player_id;
+      if (rawId === undefined || rawId === null) continue;
+
+      const idStr = String(rawId).trim();
+      const squadMember = STEAM_MAPPING[idStr];
+      if (!squadMember) continue;
+
+      discoveredNames.push(squadMember.name);
+
+      const heroId = Number(pData.hero_id);
+      const heroName = HERO_IDS[heroId] || `Unknown (${heroId})`;
+
+      let playerResult = "win"; // Fallback default
+      if (matchWinner !== null && pData.team !== undefined) {
+        playerResult = (Number(pData.team) === Number(matchWinner)) ? "win" : "loss";
+      } else if (pData.result !== undefined) {
+        playerResult = String(pData.result).toLowerCase().includes('win') ? "win" : "loss";
+      }
+
+      const record = {
+        player: squadMember.name,
+        account: squadMember.account,
+        result: playerResult, 
+        hero: heroName,
+        date: matchFormattedDate, 
+        note: `Auto-Fetched | Duration: ${durationStr}`,
+        match_id: matchId
+      };
+
+      databaseUploadPromises.push(postMatch(record));
+    }
+
+    if (databaseUploadPromises.length === 0) {
+      sync('Registry footprint missed profile accounts.');
+      alert('Match parsed successfully, but no matching registered player Steam IDs were found inside this session payload.');
+      return;
+    }
+
+    const uploadedRecords = await Promise.all(databaseUploadPromises);
+    uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
+    
+    document.getElementById('statlocker-url').value = '';
+    sync(`Logged match data for: ${discoveredNames.join(', ')}`);
+    renderAll();
+
+  } catch (e) {
+    console.error(e);
+    sync('Fetch pipeline error');
+    alert('Match parse sync error: ' + e.message);
+  }
 }
 
 async function logMatch() {
