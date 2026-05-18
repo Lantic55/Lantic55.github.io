@@ -661,7 +661,7 @@ const HERO_IDS = {
   61: "Rem", 62: "Drifter", 63: "Venator", 64: "Vyper", 65: "Paige"
 };
 
-// ── SQUAD AUTO-FETCH MATCH PIPELINE (FINALIZED JSON SCHEMA) ──────────────
+// ── ROBUST AUTO-FETCH ENGINE (DEEP EXTRACTION) ───────────────────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -710,25 +710,57 @@ async function importMatchViaId() {
       const payload = result.match;
       console.log("Raw match payload received:", payload);
 
-      // Target the exact structure returned by api.deadlock-api.com/v1/matches/{id}/metadata
-      const matchObj = payload.match || payload;
-      const playersInMatch = matchObj.players || matchObj.player_stats;
-                             
-      if (!playersInMatch || !Array.isArray(playersInMatch)) {
-        throw new Error("Match data loaded successfully, but the player details array is hidden under an unrecognized property name.");
+      // HELPER: Deep search function to scan the payload for our player array
+      function findPlayersArray(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        
+        // If this current object layer has an explicit array of players/player_stats
+        if (Array.isArray(obj.players)) return obj.players;
+        if (Array.isArray(obj.player_stats)) return obj.player_stats;
+        if (Array.isArray(obj.players_data)) return obj.players_data;
+        
+        // Loop down through nested properties to search deeper
+        for (let key in obj) {
+          if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+            const found = findPlayersArray(obj[key]);
+            if (found) return found;
+          }
+        }
+        return null;
       }
 
-      const duration = matchObj.match_duration_s || matchObj.duration_s || 0;
+      // HELPER: Deep search for numeric properties (duration, winning team)
+      function findKeyDeep(obj, keyName) {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj[keyName] !== undefined) return obj[keyName];
+        for (let key in obj) {
+          if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+            const found = findKeyDeep(obj[key], keyName);
+            if (found !== null) return found;
+          }
+        }
+        return null;
+      }
+
+      const playersInMatch = findPlayersArray(payload);
+                             
+      if (!playersInMatch) {
+        throw new Error("Match data loaded successfully, but the player data block couldn't be extracted. Check the console log structure.");
+      }
+
+      // Dig out match stats dynamically
+      const duration = findKeyDeep(payload, 'match_duration_s') || findKeyDeep(payload, 'duration_s') || 0;
       const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
       
-      // 2 = Amber, 3 = Sapphire
-      const winningTeam = matchObj.winning_team; 
+      const winningTeam = findKeyDeep(payload, 'winning_team') || findKeyDeep(payload, 'winning_team_id');
+      const startTime = findKeyDeep(payload, 'start_time');
 
       let databaseUploadPromises = [];
       let discoveredNames = [];
 
+      // Execute row creation for every team member caught in the match
       for (const pData of playersInMatch) {
-        const scannedId = String(pData.account_id || pData.player_id || pData.steam_id);
+        const scannedId = String(pData.account_id || pData.player_id || pData.steam_id || pData.steamid32);
         
         if (STEAM_MAPPING[scannedId]) {
           const squadMember = STEAM_MAPPING[scannedId];
@@ -737,35 +769,42 @@ async function importMatchViaId() {
           const heroId = pData.hero_id;
           const heroName = HERO_IDS[heroId] || `Hero ID: ${heroId}`;
           
-          // Determine win/loss status relative to the team assignment
+          // Win/Loss State Parser
           let calculatedResult = "win";
-          if (pData.team !== undefined && winningTeam !== undefined) {
-            calculatedResult = (pData.team === winningTeam) ? "win" : "loss";
-          } else if (pData.won !== undefined) {
+          if (pData.won !== undefined) {
             calculatedResult = pData.won ? "win" : "loss";
+          } else if (pData.team !== undefined && winningTeam !== undefined) {
+            calculatedResult = (pData.team === winningTeam) ? "win" : "loss";
+          } else if (pData.result !== undefined) {
+            calculatedResult = String(pData.result).toLowerCase().includes('win') ? "win" : "loss";
           }
 
+          // Setup database insertion target values
           const record = {
             player: squadMember.name,
             account: squadMember.account,
             result: calculatedResult,
             hero: heroName,
-            date: matchObj.start_time ? matchObj.start_time.slice(0, 10) : today(),
+            date: startTime ? startTime.slice(0, 10) : today(),
             note: `Auto-Fetched | Duration: ${durationStr}`,
             match_id: matchId
           };
 
+          // Send data row straight to your storage endpoint
           databaseUploadPromises.push(postMatch(record));
         }
       }
 
       if (databaseUploadPromises.length === 0) {
         sync('Fetch complete.');
-        alert(`Match records loaded perfectly, but none of your squad's registered IDs were found in this specific game lobby.`);
+        alert(`Match data loaded perfectly, but none of your squad's registered IDs were found in this match lobby.`);
         return;
       }
 
+      // Simultaneously submit entries for everyone in the match row
       const uploadedRecords = await Promise.all(databaseUploadPromises);
+      
+      // Update local array data state
       uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
       
       sync(`Logged match data for: ${discoveredNames.join(', ')}`);
