@@ -312,6 +312,31 @@ let noteTimer = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
 
+// Squad Registry Matrix
+const STEAM_MAPPING = {
+  "76811383":          { name: "Neel",   account: "main" },
+  "99197018":          { name: "Neel",   account: "main" }, 
+  "1763067640":        { name: "Neel",   account: "alt" },  
+  "1863367640":        { name: "Lantic", account: "main" },
+  "1123931349":        { name: "Lantic", account: "main" }, 
+  "1084153183":        { name: "Lantic", account: "alt" },  
+  "833408696":         { name: "Wren",   account: "main" },
+  "733708696":         { name: "Wren",   account: "alt" },  
+  "42607279":          { name: "Ollie",  account: "main" },
+  "426425114":         { name: "Ollie",  account: "main" }, 
+  "651018694":         { name: "Ollie",  account: "alt" }   
+};
+
+// Valve Hero Registry MatrixFallback Lookup IDs
+const HERO_IDS = {
+  1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 
+  6: "Apollo", 7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 
+  10: "Seven", 11: "Lash", 12: "Bebop", 13: "Viscous", 
+  14: "Haze", 15: "Pocket", 16: "Mirage", 17: "Mo & Krill", 
+  18: "Dynamo", 19: "Wraith", 20: "Yamato", 25: "Shiv", 
+  31: "McGinnis", 52: "Warden"
+};
+
 async function sb(path, opts = {}) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
@@ -367,16 +392,157 @@ async function enterMain() {
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
 // ============================================================================
-// 2. COMPLETE DASHBOARD RENDER & DATA ENGINE (PREVENTS LOADING FREEZES)
+// AUTO-FETCH ENGINE (FORCED WIN, TRUE HISTORICAL TIMESTAMPS)
+// ============================================================================
+async function importMatchViaId() {
+  const input = document.getElementById('statlocker-url')?.value.trim();
+  if (!input) return;
+
+  const matchIdRegex = /(\d+)/;
+  const match = input.match(matchIdRegex);
+  if (!match) {
+    alert("Could not extract a valid match numeric ID!");
+    return;
+  }
+  
+  const matchId = match[1];
+  const MAX_ATTEMPTS = 4; 
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (typeof sync === 'function') {
+      sync(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying (Attempt ${attempt}/${MAX_ATTEMPTS})`);
+    }
+
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ matchId: matchId })
+      });
+
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+
+      const payload = result.match;
+      console.log("Raw match payload received:", payload);
+
+      function findPlayersArray(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        if (Array.isArray(obj.players)) return obj.players;
+        if (Array.isArray(obj.player_stats)) return obj.player_stats;
+        for (let key in obj) {
+          if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+            const found = findPlayersArray(obj[key]);
+            if (found) return found;
+          }
+        }
+        return null;
+      }
+
+      function findKeyDeep(obj, keyName) {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj[keyName] !== undefined) return obj[keyName];
+        for (let key in obj) {
+          if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+            const found = findKeyDeep(obj[key], keyName);
+            if (found !== null) return found;
+          }
+        }
+        return null;
+      }
+
+      const playersInMatch = findPlayersArray(payload);
+      if (!playersInMatch) throw new Error("Could not parse player metrics array.");
+
+      const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
+      const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
+      
+      // Pull and extract the real match timestamp
+      const startTimeRaw = findKeyDeep(payload, 'start_time');
+      let matchFormattedDate = today();
+      if (startTimeRaw) {
+        const matchDateObj = new Date(Number(startTimeRaw) * 1000);
+        const mm = String(matchDateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(matchDateObj.getDate()).padStart(2, '0');
+        matchFormattedDate = `${mm}-${dd}`;
+      }
+
+      let databaseUploadPromises = [];
+      let discoveredNames = [];
+
+      for (const pData of playersInMatch) {
+        const idStr = String(pData.account_id || pData.player_id).trim();
+        if (!STEAM_MAPPING[idStr]) continue;
+
+        const squadMember = STEAM_MAPPING[idStr];
+        discoveredNames.push(squadMember.name);
+
+        let heroName = HERO_IDS[pData.hero_id] || `Hero ID: ${pData.hero_id}`;
+        if (squadMember.name === "Wren") heroName = "Dynamo";
+        if (squadMember.name === "Neel") heroName = "Yamato";
+        if (squadMember.name === "Lantic") heroName = "Apollo";
+        if (squadMember.name === "Ollie") heroName = "Haze";
+
+        // Squad queued and won together. Force "win" for everyone found
+        const record = {
+          player: squadMember.name,
+          account: squadMember.account,
+          result: "win", 
+          hero: heroName,
+          date: matchFormattedDate, 
+          note: `Auto-Fetched | Duration: ${durationStr}`,
+          match_id: matchId
+        };
+
+        databaseUploadPromises.push(postMatch(record));
+      }
+
+      if (databaseUploadPromises.length === 0) {
+        const fallbackSquad = [
+          { name: "Lantic", hero: "Apollo" },
+          { name: "Neel", hero: "Yamato" },
+          { name: "Ollie", hero: "Haze" },
+          { name: "Wren", hero: "Dynamo" }
+        ];
+        for (const member of fallbackSquad) {
+          const record = {
+            player: member.name,
+            account: "main",
+            result: "win",
+            hero: member.hero,
+            date: matchFormattedDate,
+            note: `Auto-Fetched | Duration: ${durationStr}`,
+            match_id: matchId
+          };
+          databaseUploadPromises.push(postMatch(record));
+          discoveredNames.push(member.name);
+        }
+      }
+
+      const uploadedRecords = await Promise.all(databaseUploadPromises);
+      uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
+      
+      if (typeof sync === 'function') sync(`Logged match data for: ${discoveredNames.join(', ')}`);
+      renderAll();
+      return;
+
+    } catch (e) {
+      console.error(e);
+      if (typeof sync === 'function') sync('Import pipeline error');
+      alert('Match fetch failed: ' + e.message);
+      return;
+    }
+  }
+}
+
+// ============================================================================
+// CLEAN COMBINED MASTER RENDERING SUITE (CHRONOLOGICAL SORTING ORDER)
 // ============================================================================
 function renderAll() {
-  const tbody = document.getElementById('match-history-body');
-  if (!tbody) return;
-  
-  // Clear table space for refreshed layout state injection
-  tbody.innerHTML = '';
-
-  // CHRONOLOGICAL SORT ENGINE (Newest Dates First -> Grouped by Match ID Descending)
+  // Chronological multi-level sort engine (Newest Date -> Grouped together by Match ID Descending)
   allMatches.sort((a, b) => {
     if (b.date !== a.date) {
       return b.date.localeCompare(a.date);
@@ -384,52 +550,21 @@ function renderAll() {
     return Number(b.match_id || 0) - Number(a.match_id || 0);
   });
 
-  // GENERATE THE INTERACTIVE UI DISPLAY ROWS
-  allMatches.forEach((match, index) => {
-    const tr = document.createElement('tr');
-    
-    const resultClass = match.result === 'win' ? 'badge-win' : 'badge-loss';
-    const playerClass = `player-${match.player.toLowerCase()}`;
-
-    let displayDate = match.date;
-    if (displayDate && displayDate.includes('-') && displayDate.split('-')[0].length === 4) {
-      displayDate = displayDate.slice(5);
-    }
-
-    tr.innerHTML = `
-      <td>${allMatches.length - index}</td>
-      <td>${displayDate || '05-18'}</td>
-      <td><span class="player-badge ${playerClass}">${match.player}</span></td>
-      <td><span class="account-tag">${match.account || 'main'}</span></td>
-      <td><span class="result-badge ${resultClass}">${match.result.toUpperCase()}</span></td>
-      <td class="hero-cell"><strong>${match.hero}</strong></td>
-      <td class="match-id-cell">${match.match_id || '—'}</td>
-      <td class="note-cell">${match.note || ''}</td>
-      <td>
-        <button class="delete-btn" onclick="deleteMatch('${match.id}', ${index})">✕</button>
-      </td>
-    `;
-    
-    tbody.appendChild(tr);
-  });
-
-  // SAFE DYNAMIC CALLBACK TRIGGERS FOR YOUR INTERACTIVE CHARTS & METRICS CARD BLOCKS
-  if (typeof updateStats === 'function') {
-    updateStats();
-  }
-  if (typeof updateCharts === 'function') {
-    updateCharts();
-  }
-  if (typeof updateHeadToHead === 'function') {
-    updateHeadToHead();
-  }
+  // Execute sub-rendering processes
+  renderTeam();
+  renderCards();
+  renderCharts();
+  renderH2H();
+  renderRecent();
+  renderHistory();
+  renderLinks();
 }
 
 function renderTeam() {
   const w = allMatches.filter(x=>x.result==='win').length;
   const l = allMatches.filter(x=>x.result==='loss').length;
   const t = w+l;
-  const td = allMatches.filter(x=>x.date===today());
+  const td = allMatches.filter(x=>x.date===today() || (x.date && x.date === today().slice(5)));
   const tw = td.filter(x=>x.result==='win').length;
   const tl = td.filter(x=>x.result==='loss').length;
   document.getElementById('s-w').textContent  = w;
@@ -469,7 +604,7 @@ function renderCards() {
 
 function renderCharts() {
   const t = today();
-  const tdm = allMatches.filter(x=>x.date===t);
+  const tdm = allMatches.filter(x=>x.date===t || x.date === t.slice(5));
   const tw = PLAYERS.map(p=>tdm.filter(x=>x.player===p&&x.result==='win').length);
   const tl = PLAYERS.map(p=>tdm.filter(x=>x.player===p&&x.result==='loss').length);
 
@@ -497,7 +632,7 @@ function renderCharts() {
   if (chartTotal) chartTotal.destroy();
   chartTotal = new Chart(document.getElementById('totalChart'), {
     type:'line',
-    data:{labels:dates.map(d=>d.slice(5)), datasets:[
+    data:{labels:dates.map(d=>d.includes('-') && d.split('-')[0].length === 4 ? d.slice(5) : d), datasets:[
       {label:'Wins',  data:dates.map(d=>byDate[d].cw), borderColor:'#639922', backgroundColor:'rgba(99,153,34,0.1)',  fill:true,tension:0.3,pointRadius:3},
       {label:'Losses',data:dates.map(d=>byDate[d].cl), borderColor:'#E24B4A', backgroundColor:'rgba(226,75,74,0.07)', fill:true,tension:0.3,pointRadius:3,borderDash:[5,3]}
     ]},
@@ -548,7 +683,7 @@ function renderH2H() {
 
 function renderRecent() {
   const el=document.getElementById('recent-list');
-  const rows=[...allMatches].sort((a,b)=>b.id-a.id).slice(0,6);
+  const rows=[...allMatches].slice(0,6);
   if(!rows.length){el.innerHTML='<p class="empty-state">No matches yet.</p>';return;}
   el.innerHTML=rows.map(m=>`
     <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
@@ -557,7 +692,7 @@ function renderRecent() {
       <span class="pill ${m.account}">${m.account}</span>
       ${m.hero?`<span style="font-size:12px">${m.hero}</span>`:''}
       ${m.note?`<span style="font-size:12px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.note}</span>`:'<span style="flex:1"></span>'}
-      <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">${m.date.slice(5)}</span>
+      <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">${m.date && m.date.includes('-') && m.date.split('-')[0].length === 4 ? m.date.slice(5) : m.date}</span>
     </div>`).join('');
 }
 
@@ -566,23 +701,26 @@ function renderHistory() {
   const fa=document.getElementById('f-account').value;
   const fr=document.getElementById('f-result').value;
   const fh=(document.getElementById('f-hero').value||'').toLowerCase();
-  let rows=[...allMatches].sort((a,b)=>b.id-a.id);
+  
+  let rows=[...allMatches];
   if(fp!=='all')rows=rows.filter(x=>x.player===fp);
   if(fa!=='all')rows=rows.filter(x=>x.account===fa);
   if(fr!=='all')rows=rows.filter(x=>x.result===fr);
   if(fh)rows=rows.filter(x=>(x.hero||'').toLowerCase().includes(fh));
+  
   const body=document.getElementById('history-body');
   const empty=document.getElementById('history-empty');
   if(!rows.length){body.innerHTML='';empty.style.display='';return;}
   empty.style.display='none';
+  
   body.innerHTML=rows.map((m,i)=>`
     <tr>
       <td style="color:var(--hint);font-family:var(--mono)">${rows.length-i}</td>
-      <td style="font-family:var(--mono);font-size:12px">${m.date.slice(5)}</td>
+      <td style="font-family:var(--mono);font-size:12px">${m.date && m.date.includes('-') && m.date.split('-')[0].length === 4 ? m.date.slice(5) : m.date}</td>
       <td><span class="pill ${m.player}">${m.player}</span></td>
       <td><span class="pill ${m.account}">${m.account}</span></td>
       <td><span class="pill ${m.result}">${m.result}</span></td>
-      <td style="font-size:12px">${m.hero||'<span style="color:var(--hint)">—</span>'}</td>
+      <td style="font-size:12px"><strong>${m.hero||'—'}</strong></td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${m.match_id||'—'}</td>
       <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${m.note||''}</td>
       <td><button class="btn danger sm" onclick="removeMatch(${m.id})">✕</button></td>
@@ -683,250 +821,6 @@ function exportCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-}
-// 1. COMPLETELY VERIFIED SQUAD MATRIX (Captured straight from your console logs)
-const STEAM_MAPPING = {
-  // Neel
-  "76811383":          { name: "Neel",   account: "main" }, // <-- Verified from your console log index 9!
-  "99197018":          { name: "Neel",   account: "main" }, 
-  "1763067640":        { name: "Neel",   account: "alt" },  
-  
-  // Lantic
-  "1863367640":        { name: "Lantic", account: "main" }, // Verified from log index 1
-  "1123931349":        { name: "Lantic", account: "main" }, 
-  "1084153183":        { name: "Lantic", account: "alt" },  
-
-  // Wren
-  "833408696":         { name: "Wren",   account: "main" }, // Verified from log index 2
-  "733708696":         { name: "Wren",   account: "alt" },  
-
-  // Ollie
-  "42607279":          { name: "Ollie",  account: "main" }, // Verified from log index 8
-  "426425114":         { name: "Ollie",  account: "main" }, 
-  "651018694":         { name: "Ollie",  account: "alt" }   
-};
-
-// 2. STABLE HERO LOOKUP MATRIX
-const HERO_IDS = {
-  1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 
-  6: "Apollo", 7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 
-  10: "Seven", 11: "Lash", 12: "Bebop", 13: "Viscous", 
-  14: "Haze", 15: "Pocket", 16: "Mirage", 17: "Mo & Krill", 
-  18: "Dynamo", 19: "Wraith", 20: "Yamato", 25: "Shiv", 
-  31: "McGinnis", 52: "Warden"
-};
-
-// ============================================================================
-// 1. FIXED AUTO-FETCH PIPELINE WITH HISTORICAL TIMESTAMPS & FORCED SQUAD WINS
-// ============================================================================
-async function importMatchViaId() {
-  const input = document.getElementById('statlocker-url')?.value.trim() || 
-                document.getElementById('match-id-input')?.value.trim(); // Dynamic selector fallback
-  if (!input) return;
-
-  const matchIdRegex = /(\d+)/;
-  const match = input.match(matchIdRegex);
-  if (!match) {
-    alert("Could not extract a valid match numeric ID!");
-    return;
-  }
-  
-  const matchId = match[1];
-  const MAX_ATTEMPTS = 4; 
-  const DELAY_MS = 15000; 
-
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    // Check which feedback utility function your script uses to print system status updates
-    if (typeof sync === 'function') {
-      sync(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying (Attempt ${attempt}/${MAX_ATTEMPTS})`);
-    } else if (typeof setStatus === 'function') {
-      setStatus(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying`);
-    }
-
-    try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`
-        },
-        body: JSON.stringify({ matchId: matchId })
-      });
-
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
-
-      const payload = result.match;
-      console.log("Raw match payload received:", payload);
-
-      function findPlayersArray(obj) {
-        if (!obj || typeof obj !== 'object') return null;
-        if (Array.isArray(obj.players)) return obj.players;
-        if (Array.isArray(obj.player_stats)) return obj.player_stats;
-        
-        for (let key in obj) {
-          if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
-            const found = findPlayersArray(obj[key]);
-            if (found) return found;
-          }
-        }
-        return null;
-      }
-
-      function findKeyDeep(obj, keyName) {
-        if (!obj || typeof obj !== 'object') return null;
-        if (obj[keyName] !== undefined) return obj[keyName];
-        for (let key in obj) {
-          if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
-            const found = findKeyDeep(obj[key], keyName);
-            if (found !== null) return found;
-          }
-        }
-        return null;
-      }
-
-      const playersInMatch = findPlayersArray(payload);
-      if (!playersInMatch) throw new Error("Could not parse player metrics array.");
-
-      const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
-      const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
-      
-      // Pull true Unix timestamp out of match data payload instead of local time
-      const startTimeRaw = findKeyDeep(payload, 'start_time');
-      let matchFormattedDate = (typeof today === 'function') ? today() : new Date().toISOString().slice(0, 10);
-      
-      if (startTimeRaw) {
-        const matchDateObj = new Date(Number(startTimeRaw) * 1000);
-        const mm = String(matchDateObj.getMonth() + 1).padStart(2, '0');
-        const dd = String(matchDateObj.getDate()).padStart(2, '0');
-        matchFormattedDate = `${mm}-${dd}`;
-      }
-
-      let databaseUploadPromises = [];
-      let discoveredNames = [];
-
-      for (const pData of playersInMatch) {
-        const idStr = String(pData.account_id || pData.player_id).trim();
-        
-        if (!STEAM_MAPPING[idStr]) continue;
-
-        const squadMember = STEAM_MAPPING[idStr];
-        discoveredNames.push(squadMember.name);
-
-        let heroName = HERO_IDS[pData.hero_id] || `Hero ID: ${pData.hero_id}`;
-        if (squadMember.name === "Wren") heroName = "Dynamo";
-        if (squadMember.name === "Neel") heroName = "Yamato";
-        if (squadMember.name === "Lantic") heroName = "Apollo";
-        if (squadMember.name === "Ollie") heroName = "Haze";
-
-        // Squad queued and won together. Force "win" across all registered squad profiles found.
-        const record = {
-          player: squadMember.name,
-          account: squadMember.account,
-          result: "win", 
-          hero: heroName,
-          date: matchFormattedDate, 
-          note: `Auto-Fetched | Duration: ${durationStr}`,
-          match_id: matchId
-        };
-
-        databaseUploadPromises.push(postMatch(record));
-      }
-
-      if (databaseUploadPromises.length === 0) {
-        const fallbackSquad = [
-          { name: "Lantic", hero: "Apollo" },
-          { name: "Neel", hero: "Yamato" },
-          { name: "Ollie", hero: "Haze" },
-          { name: "Wren", hero: "Dynamo" }
-        ];
-
-        for (const member of fallbackSquad) {
-          const record = {
-            player: member.name,
-            account: "main",
-            result: "win",
-            hero: member.hero,
-            date: matchFormattedDate,
-            note: `Auto-Fetched | Duration: ${durationStr}`,
-            match_id: matchId
-          };
-          databaseUploadPromises.push(postMatch(record));
-          discoveredNames.push(member.name);
-        }
-      }
-
-      const uploadedRecords = await Promise.all(databaseUploadPromises);// ============================================================================
-// 2. COMPLETE DASHBOARD RENDER & DATA ENGINE (PREVENTS LOADING FREEZES)
-// ============================================================================
-function renderAll() {
-  const tbody = document.getElementById('match-history-body');
-  if (!tbody) return;
-  
-  // Clear table space for refreshed layout state injection
-  tbody.innerHTML = '';
-
-  // CHRONOLOGICAL SORT ENGINE (Newest Dates First -> Grouped by Match ID Descending)
-  allMatches.sort((a, b) => {
-    if (b.date !== a.date) {
-      return b.date.localeCompare(a.date);
-    }
-    return Number(b.match_id || 0) - Number(a.match_id || 0);
-  });
-
-  // GENERATE THE INTERACTIVE UI DISPLAY ROWS
-  allMatches.forEach((match, index) => {
-    const tr = document.createElement('tr');
-    
-    const resultClass = match.result === 'win' ? 'badge-win' : 'badge-loss';
-    const playerClass = `player-${match.player.toLowerCase()}`;
-
-    let displayDate = match.date;
-    if (displayDate && displayDate.includes('-') && displayDate.split('-')[0].length === 4) {
-      displayDate = displayDate.slice(5);
-    }
-
-    tr.innerHTML = `
-      <td>${allMatches.length - index}</td>
-      <td>${displayDate || '05-18'}</td>
-      <td><span class="player-badge ${playerClass}">${match.player}</span></td>
-      <td><span class="account-tag">${match.account || 'main'}</span></td>
-      <td><span class="result-badge ${resultClass}">${match.result.toUpperCase()}</span></td>
-      <td class="hero-cell"><strong>${match.hero}</strong></td>
-      <td class="match-id-cell">${match.match_id || '—'}</td>
-      <td class="note-cell">${match.note || ''}</td>
-      <td>
-        <button class="delete-btn" onclick="deleteMatch('${match.id}', ${index})">✕</button>
-      </td>
-    `;
-    
-    tbody.appendChild(tr);
-  });
-
-  // SAFE DYNAMIC CALLBACK TRIGGERS FOR YOUR INTERACTIVE CHARTS & METRICS CARD BLOCKS
-  if (typeof updateStats === 'function') {
-    updateStats();
-  }
-  if (typeof updateCharts === 'function') {
-    updateCharts();
-  }
-  if (typeof updateHeadToHead === 'function') {
-    updateHeadToHead();
-  }
-}
-      uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
-      
-      if (typeof sync === 'function') sync(`Logged match data for: ${discoveredNames.join(', ')}`);
-      renderAll();
-      return;
-
-    } catch (e) {
-      console.error(e);
-      if (typeof sync === 'function') sync('Import pipeline error');
-      alert('Match fetch failed: ' + e.message);
-      return;
-    }
-  }
 }
 </script>
 </body>
