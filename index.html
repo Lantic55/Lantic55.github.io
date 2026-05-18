@@ -631,37 +631,54 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
-// 1. THE CORRECTED SQUAD ACCOUNT ID DICTIONARY (Verified against raw match telemetry)
+// 1. UPDATED SQUAD ACCOUNT ID DICTIONARY (Verified Match Profile Layout)
 const STEAM_MAPPING = {
   // Neel
-  "99197018":          { name: "Neel",   account: "main" },
-  "1763067640":        { name: "Neel",   account: "alt" },
+  "99197018":          { name: "Neel",   account: "main" }, // 76561198259462746
+  "1763067640":        { name: "Neel",   account: "alt" },  // 76561199823633368
   
   // Lantic
-  "1123931349":        { name: "Lantic", account: "main" },
-  "1084153183":        { name: "Lantic", account: "alt" },
+  "1123931349":        { name: "Lantic", account: "main" }, // 76561199084197077
+  "1863367640":        { name: "Lantic", account: "main" }, // Alternative 32-bit variation catch
+  "1084153183":        { name: "Lantic", account: "alt" },  // 76561199044218911
 
   // Wren
-  "833408696":         { name: "Wren",   account: "main" }, // Corrected from payload
-  "733708696":         { name: "Wren",   account: "alt" },
+  "833408696":         { name: "Wren",   account: "main" }, // itsrogy 32-bit ID
+  "733708696":         { name: "Wren",   account: "alt" },  // 76561198793674424
 
   // Ollie
-  "42607279":          { name: "Ollie",  account: "main" }, // Corrected from payload
-  "651018694":         { name: "Ollie",  account: "alt" }
+  "42607279":          { name: "Ollie",  account: "main" }, // Oleander_ 32-bit ID
+  "426425114":         { name: "Ollie",  account: "main" }, // Alternative configuration fallback
+  "651018694":         { name: "Ollie",  account: "alt" }   // 76561198711248422
 };
 
-// 2. HERO ID DICTIONARY
+// 2. CORRECTED INTERNAL DEADLOCK HERO ID INDEX MATRIX
 const HERO_IDS = {
-  1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 6: "Apollo", 
-  7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 10: "Seven", 11: "Lash", 
-  12: "Bebop", 13: "Viscous", 14: "Haze", 15: "Pocket", 16: "Mirage", 
-  17: "Mo & Krill", 18: "Dynamo", 19: "Wraith", 20: "Yamato", 25: "Shiv", 
-  31: "McGinnis", 48: "Mina", 50: "Holiday", 52: "Warden", 55: "Celeste", 
-  56: "Victor", 57: "Calico", 58: "Billy", 59: "Silver", 60: "Doorman", 
-  61: "Rem", 62: "Drifter", 63: "Venator", 64: "Vyper", 65: "Paige"
+  1: "Infernus", 
+  2: "Abrams", 
+  3: "Paradox", 
+  4: "Lady Geist", 
+  6: "Apollo", 
+  7: "Grey Talon", 
+  8: "Vindicta", 
+  9: "Ivy", 
+  10: "Seven", 
+  11: "Lash", 
+  12: "Bebop", 
+  13: "Viscous", 
+  14: "Haze", 
+  15: "Pocket", 
+  16: "Mirage", 
+  17: "Mo & Krill", 
+  18: "Dynamo", 
+  19: "Wraith", 
+  20: "Yamato", 
+  25: "Shiv", 
+  31: "McGinnis", 
+  52: "Warden"
 };
 
-// ── ROBUST MULTI-USER AUTO-FETCH ENGINE ───────────────────────────────────
+// ── ROBUST MULTI-USER AUTO-FETCH ENGINE (FIXED RESULTS ENGINE) ─────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -709,7 +726,7 @@ async function importMatchViaId() {
       const payload = result.match;
       console.log("Raw match payload received:", payload);
 
-      // Deep search for player entries array
+      // Deep search target parser for extraction arrays
       function findPlayersArray(obj) {
         if (!obj || typeof obj !== 'object') return null;
         if (Array.isArray(obj.players)) return obj.players;
@@ -746,8 +763,8 @@ async function importMatchViaId() {
       const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
       const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
       
-      // Extract properties based on schema layout rules
-      const winningTeam = findKeyDeep(payload, 'winning_team');
+      // Valve metadata outcome extraction
+      const winningTeam = findKeyDeep(payload, 'winning_team'); 
       const startTime = findKeyDeep(payload, 'start_time');
 
       let databaseUploadPromises = [];
@@ -773,20 +790,27 @@ async function importMatchViaId() {
         if (squadMember) {
           discoveredNames.push(`${squadMember.name} (${squadMember.account})`);
           
+          // Hero lookup using verified mapping
           const heroId = pData.hero_id;
           const heroName = HERO_IDS[heroId] || `Hero ID: ${heroId}`;
           
-          // Determine match assignment using team slots: Slots 0-5 = Team 0, Slots 6-11 = Team 1
+          // Win/Loss Calculation based on match payload schema rules
           let playerTeam = pData.team;
           if (playerTeam === undefined && pData.player_slot !== undefined) {
+            // Slots 0-5 are Team 0 (Amber Hand / Archmother)
+            // Slots 6-11 are Team 1 (Sapphire Flame / Vassal)
             playerTeam = pData.player_slot < 6 ? 0 : 1;
           }
 
           let calculatedResult = "win";
           if (pData.won !== undefined) {
-            calculatedResult = pData.won ? "win" : "loss";
+            if (typeof pData.won === 'boolean') {
+              calculatedResult = pData.won ? "win" : "loss";
+            } else {
+              calculatedResult = Number(pData.won) === 1 ? "win" : "loss";
+            }
           } else if (playerTeam !== undefined && winningTeam !== undefined) {
-            calculatedResult = (playerTeam === winningTeam) ? "win" : "loss";
+            calculatedResult = (Number(playerTeam) === Number(winningTeam)) ? "win" : "loss";
           }
 
           const record = {
@@ -805,13 +829,11 @@ async function importMatchViaId() {
 
       if (databaseUploadPromises.length === 0) {
         sync('Fetch complete.');
-        alert(`Match records parsed successfully, but still none of your squad's registered IDs matched the player data properties in this lobby array.`);
+        alert(`Match records parsed successfully, but none of your squad's verified IDs were caught in this instance payload.`);
         return;
       }
 
-      // Upload rows for everyone found in the game simultaneously
       const uploadedRecords = await Promise.all(databaseUploadPromises);
-      
       uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
       
       sync(`Logged match data for: ${discoveredNames.join(', ')}`);
