@@ -199,9 +199,15 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
   </div>
 
   <div class="section">
-    <div class="section-label">Head-to-head — win rate when playing together</div>
+    <div class="chart-head">
+      <div class="section-label" style="margin-bottom:0">Head-to-head — win rate when playing together</div>
+      <div class="segmented" aria-label="Head-to-head account filter">
+        <button class="seg-btn active" id="h2h-main-btn" type="button" onclick="setH2HAccount('main')">Main</button>
+        <button class="seg-btn" id="h2h-alt-btn" type="button" onclick="setH2HAccount('alt')">Alt</button>
+      </div>
+    </div>
     <div class="card">
-      <p style="font-size:12px; color:var(--muted); margin-bottom:12px">Row player's win rate during sessions where the column player also played (same date + account).</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:12px" id="h2h-note">Row player's win rate during sessions where the column player also played.</p>
       <div style="overflow-x:auto" id="h2h-wrap"><p class="loading">Loading…</p></div>
     </div>
   </div>
@@ -320,6 +326,7 @@ let me = localStorage.getItem('dl_me') || null;
 let allMatches = [], allLinks = [];
 let chartToday = null, chartTotal = null;
 let chartAccount = localStorage.getItem('dl_chart_account') || 'main';
+let h2hAccount = localStorage.getItem('dl_h2h_account') || 'main';
 let noteTimer = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
@@ -511,6 +518,43 @@ function setChartAccount(account) {
   renderCharts();
 }
 
+function setH2HAccount(account) {
+  h2hAccount = account === 'alt' ? 'alt' : 'main';
+  localStorage.setItem('dl_h2h_account', h2hAccount);
+  renderH2H();
+}
+
+function isTodayDate(date) {
+  return date === today() || (date && date === today().slice(5));
+}
+
+function displayDate(date) {
+  return date && date.includes('-') && date.split('-')[0].length === 4 ? date.slice(5) : date;
+}
+
+function getMatchSessions(rows) {
+  const groups = {};
+  for (const m of rows) {
+    const matchKey = m.match_id ? String(m.match_id) : `manual-${m.date}-${m.account}-${m.id}`;
+    const key = `${m.account}|${matchKey}`;
+    if (!groups[key]) groups[key] = { key, matchId: m.match_id || '', account: m.account, date: m.date, rows: [], sortId: Number(m.id || 0) };
+    groups[key].rows.push(m);
+    if (Number(m.id || 0) < groups[key].sortId) groups[key].sortId = Number(m.id || 0);
+  }
+
+  return Object.values(groups).map(session => {
+    const wins = session.rows.filter(x=>x.result==='win').length;
+    const losses = session.rows.filter(x=>x.result==='loss').length;
+    session.result = wins >= losses ? 'win' : 'loss';
+    session.players = {};
+    for (const row of session.rows) {
+      if (!session.players[row.player]) session.players[row.player] = { w:0, l:0 };
+      if (row.result === 'win') session.players[row.player].w++; else session.players[row.player].l++;
+    }
+    return session;
+  });
+}
+
 // ============================================================================
 // SOLIDIFIED DATA RENDERING SYSTEM
 // ============================================================================
@@ -530,16 +574,17 @@ function renderAll() {
 }
 
 function renderTeam() {
-  const w = allMatches.filter(x=>x.result==='win').length;
-  const l = allMatches.filter(x=>x.result==='loss').length;
+  const sessions = getMatchSessions(allMatches);
+  const w = sessions.filter(x=>x.result==='win').length;
+  const l = sessions.filter(x=>x.result==='loss').length;
   const t = w+l;
-  const td = allMatches.filter(x=>x.date===today() || (x.date && x.date === today().slice(5)));
+  const td = sessions.filter(x=>isTodayDate(x.date));
   const tw = td.filter(x=>x.result==='win').length;
   const tl = td.filter(x=>x.result==='loss').length;
   document.getElementById('s-w').textContent  = w;
   document.getElementById('s-l').textContent  = l;
   document.getElementById('s-wr').textContent = t ? Math.round(w/t*100)+'%' : '—%';
-  document.getElementById('s-w2').textContent = t+' total games';
+  document.getElementById('s-w2').textContent = t+' team games';
   document.getElementById('s-l2').textContent = t ? Math.round(l/t*100)+'% loss rate' : '';
   document.getElementById('s-today').textContent = td.length;
   document.getElementById('s-today2').textContent = tw+'W / '+tl+'L';
@@ -603,20 +648,26 @@ function renderCharts() {
               y:{beginAtZero:true,ticks:{stepSize:1,color:'#7a7f8e'},grid:{color:'rgba(255,255,255,0.05)'}}}}
   });
 
-  const sorted = [...accountMatches].sort((a,b)=>a.id-b.id);
-  const byDate = {}; let cw=0,cl=0;
-  for (const m of sorted) {
-    if(m.result==='win')cw++;else cl++;
-    byDate[m.date]={cw,cl};
+  const sessions = getMatchSessions(accountMatches).sort((a,b) => {
+    if ((a.date || '') !== (b.date || '')) return (a.date || '').localeCompare(b.date || '');
+    return a.sortId - b.sortId;
+  });
+  const points = []; let cw=0,cl=0;
+  for (const session of sessions) {
+    if(session.result==='win')cw++;else cl++;
+    points.push({
+      label: session.matchId ? `${displayDate(session.date)} #${String(session.matchId).slice(-4)}` : displayDate(session.date),
+      cw,
+      cl
+    });
   }
-  const dates = Object.keys(byDate).sort();
 
   if (chartTotal) chartTotal.destroy();
   chartTotal = new Chart(document.getElementById('totalChart'), {
     type:'line',
-    data:{labels:dates.map(d=>d.includes('-') && d.split('-')[0].length === 4 ? d.slice(5) : d), datasets:[
-      {label:'Wins',  data:dates.map(d=>byDate[d].cw), borderColor:'#639922', backgroundColor:'rgba(99,153,34,0.1)',  fill:true,tension:0.3,pointRadius:3},
-      {label:'Losses',data:dates.map(d=>byDate[d].cl), borderColor:'#E24B4A', backgroundColor:'rgba(226,75,74,0.07)', fill:true,tension:0.3,pointRadius:3,borderDash:[5,3]}
+    data:{labels:points.map(p=>p.label), datasets:[
+      {label:'Wins',  data:points.map(p=>p.cw), borderColor:'#639922', backgroundColor:'rgba(99,153,34,0.1)',  fill:true,tension:0.3,pointRadius:4},
+      {label:'Losses',data:points.map(p=>p.cl), borderColor:'#E24B4A', backgroundColor:'rgba(226,75,74,0.07)', fill:true,tension:0.3,pointRadius:4,borderDash:[5,3]}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false}},
@@ -626,16 +677,21 @@ function renderCharts() {
 }
 
 function renderH2H() {
-  const sessions = {};
-  for (const m of allMatches) {
-    const key = m.date+'|'+m.account;
-    if (!sessions[key]) sessions[key]={};
-    if (!sessions[key][m.player]) sessions[key][m.player]={w:0,l:0};
-    if (m.result==='win') sessions[key][m.player].w++; else sessions[key][m.player].l++;
+  const label = h2hAccount === 'alt' ? 'Alt' : 'Main';
+  const mainBtn = document.getElementById('h2h-main-btn');
+  const altBtn = document.getElementById('h2h-alt-btn');
+  if (mainBtn && altBtn) {
+    mainBtn.classList.toggle('active', h2hAccount === 'main');
+    altBtn.classList.toggle('active', h2hAccount === 'alt');
   }
+  const note = document.getElementById('h2h-note');
+  if (note) note.textContent = `${label} account sessions only. Row player's win rate during matches where the column player also played.`;
+
+  const sessions = getMatchSessions(allMatches.filter(x=>x.account===h2hAccount));
   const h2h={};
   for (const p1 of PLAYERS) for (const p2 of PLAYERS) h2h[p1+'|'+p2]={w:0,l:0};
-  for (const [, players] of Object.entries(sessions)) {
+  for (const session of sessions) {
+    const players = session.players;
     const inS = PLAYERS.filter(p=>players[p]);
     for (let i=0;i<inS.length;i++) for (let j=0;j<inS.length;j++) {
       if (i===j) continue;
