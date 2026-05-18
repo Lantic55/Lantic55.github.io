@@ -329,13 +329,118 @@ const STEAM_MAPPING = {
 
 // 2. VALVE HERO LOOKUP MATRIX
 const HERO_IDS = {
-  1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 
-  6: "Apollo", 7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 
-  10: "Seven", 11: "Lash", 12: "Bebop", 13: "Viscous", 
-  14: "Haze", 15: "Pocket", 16: "Mirage", 17: "Mo & Krill", 
-  18: "Dynamo", 19: "Wraith", 20: "Yamato", 25: "Shiv", 
-  31: "McGinnis", 35: "Kelvin", 52: "Warden", 55: "Calico"
+  1: "Infernus", 2: "Seven", 3: "Vindicta", 4: "Lady Geist",
+  6: "Abrams", 7: "Wraith", 8: "McGinnis", 10: "Paradox",
+  11: "Dynamo", 12: "Kelvin", 13: "Haze", 14: "Holliday",
+  15: "Bebop", 16: "Calico", 17: "Grey Talon", 18: "Mo & Krill",
+  19: "Shiv", 20: "Ivy", 25: "Warden", 27: "Yamato",
+  31: "Lash", 35: "Viscous", 50: "Pocket", 52: "Mirage",
+  58: "Vyper", 60: "Sinclair", 63: "Mina", 64: "Drifter",
+  65: "Venator", 66: "Victor", 67: "Paige", 69: "The Doorman",
+  72: "Billy", 76: "Graves", 77: "Apollo", 79: "Rem",
+  80: "Silver", 81: "Celeste"
 };
+
+let heroLookupLoaded = false;
+
+async function refreshHeroLookup() {
+  if (heroLookupLoaded) return;
+  heroLookupLoaded = true;
+  try {
+    const response = await fetch('https://assets.deadlock-api.com/v2/heroes?language=english');
+    if (!response.ok) return;
+    const heroes = await response.json();
+    for (const hero of heroes) {
+      if (hero && hero.id !== undefined && hero.name) HERO_IDS[Number(hero.id)] = hero.name;
+    }
+  } catch (_) {}
+}
+
+const STEAM_ID64_OFFSET = 76561197960265728n;
+const PLAYER_ID_KEYS = [
+  'account_id', 'accountId', 'player_id', 'playerId', 'steam_id', 'steamId',
+  'steamid', 'steam_id64', 'steamId64', 'steam64', 'player_account_id',
+  'playerAccountId'
+];
+const HERO_ID_KEYS = ['hero_id', 'heroId', 'character_id', 'characterId'];
+const TEAM_KEYS = ['team', 'team_id', 'teamId', 'player_team', 'playerTeam'];
+
+function findValueDeep(obj, keyNames) {
+  if (!obj || typeof obj !== 'object') return null;
+  for (const keyName of keyNames) {
+    if (obj[keyName] !== undefined && obj[keyName] !== null) return obj[keyName];
+  }
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key) && typeof obj[key] === 'object') {
+      const found = findValueDeep(obj[key], keyNames);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
+
+function normalizeSteamIds(rawId) {
+  if (rawId === undefined || rawId === null || rawId === '') return [];
+  const raw = String(rawId).trim();
+  const ids = new Set([raw]);
+  if (!/^\d+$/.test(raw)) return [...ids];
+
+  try {
+    const n = BigInt(raw);
+    if (n > STEAM_ID64_OFFSET) ids.add(String(n - STEAM_ID64_OFFSET));
+    else ids.add(String(n + STEAM_ID64_OFFSET));
+    ids.add(String(n & 0xffffffffn));
+  } catch (_) {}
+
+  return [...ids];
+}
+
+function resolveSquadMember(playerData) {
+  const rawId = findValueDeep(playerData, PLAYER_ID_KEYS);
+  for (const id of normalizeSteamIds(rawId)) {
+    if (STEAM_MAPPING[id]) return { ...STEAM_MAPPING[id], matchedId: id, rawId: String(rawId) };
+  }
+  return null;
+}
+
+function getHeroId(playerData) {
+  const heroId = findValueDeep(playerData, HERO_ID_KEYS);
+  const n = Number(heroId);
+  return Number.isFinite(n) ? n : null;
+}
+
+function getTeamId(playerData) {
+  const teamId = findValueDeep(playerData, TEAM_KEYS);
+  return teamId === null ? null : Number(teamId);
+}
+
+function collectPlayerArrayCandidates(obj, candidates = []) {
+  if (!obj || typeof obj !== 'object') return candidates;
+  if (Array.isArray(obj)) {
+    if (obj.length && obj.every(x => x && typeof x === 'object' && !Array.isArray(x))) {
+      const mapped = obj.filter(x => resolveSquadMember(x)).length;
+      const heroes = obj.filter(x => getHeroId(x) !== null).length;
+      const teams = obj.filter(x => getTeamId(x) !== null).length;
+      if (mapped || heroes) candidates.push({ rows: obj, mapped, heroes, teams, size: obj.length });
+    }
+    for (const item of obj) collectPlayerArrayCandidates(item, candidates);
+    return candidates;
+  }
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) collectPlayerArrayCandidates(obj[key], candidates);
+  }
+  return candidates;
+}
+
+function findBestPlayersArray(payload) {
+  const candidates = collectPlayerArrayCandidates(payload);
+  candidates.sort((a, b) => {
+    const scoreA = (a.mapped * 1000) + (Math.min(a.mapped, a.heroes) * 100) + (a.heroes * 10) + a.teams;
+    const scoreB = (b.mapped * 1000) + (Math.min(b.mapped, b.heroes) * 100) + (b.heroes * 10) + b.teams;
+    return scoreB - scoreA || b.size - a.size;
+  });
+  return candidates[0]?.rows || null;
+}
 
 async function sb(path, opts = {}) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
@@ -621,26 +726,13 @@ async function importMatchViaId() {
     if (!result.success) throw new Error(result.error || "Edge function failure response");
 
     const payload = result.match;
-
-    // Deep tree mapping search engines
-    function findPlayersArray(obj) {
-      if (!obj || typeof obj !== 'object') return null;
-      if (Array.isArray(obj.players)) return obj.players;
-      if (Array.isArray(obj.player_stats)) return obj.player_stats;
-      for (let key in obj) {
-        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
-          const found = findPlayersArray(obj[key]);
-          if (found) return found;
-        }
-      }
-      return null;
-    }
+    await refreshHeroLookup();
 
     function findKeyDeep(obj, keyName) {
       if (!obj || typeof obj !== 'object') return null;
       if (obj[keyName] !== undefined) return obj[keyName];
       for (let key in obj) {
-        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+        if (Object.prototype.hasOwnProperty.call(obj, key) && typeof obj[key] === 'object') {
           const found = findKeyDeep(obj[key], keyName);
           if (found !== null) return found;
         }
@@ -648,8 +740,8 @@ async function importMatchViaId() {
       return null;
     }
 
-    const playersInMatch = findPlayersArray(payload);
-    if (!playersInMatch) throw new Error("Could not map player array inside JSON tree structure.");
+    const playersInMatch = findBestPlayersArray(payload);
+    if (!playersInMatch) throw new Error("Could not find a player-stat array with account and hero data inside the match payload.");
 
     const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
     const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
@@ -666,21 +758,18 @@ async function importMatchViaId() {
     let discoveredNames = [];
 
     for (const pData of playersInMatch) {
-      const rawId = pData.account_id !== undefined ? pData.account_id : pData.player_id;
-      if (rawId === undefined || rawId === null) continue;
-
-      const idStr = String(rawId).trim();
-      const squadMember = STEAM_MAPPING[idStr];
+      const squadMember = resolveSquadMember(pData);
       if (!squadMember) continue;
 
       discoveredNames.push(squadMember.name);
 
-      const heroId = Number(pData.hero_id);
+      const heroId = getHeroId(pData);
       const heroName = HERO_IDS[heroId] || `Unknown (${heroId})`;
 
       let playerResult = "win"; // Fallback default
-      if (matchWinner !== null && pData.team !== undefined) {
-        playerResult = (Number(pData.team) === Number(matchWinner)) ? "win" : "loss";
+      const playerTeam = getTeamId(pData);
+      if (matchWinner !== null && playerTeam !== null) {
+        playerResult = (Number(playerTeam) === Number(matchWinner)) ? "win" : "loss";
       } else if (pData.result !== undefined) {
         playerResult = String(pData.result).toLowerCase().includes('win') ? "win" : "loss";
       }
