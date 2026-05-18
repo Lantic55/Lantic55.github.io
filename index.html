@@ -39,13 +39,8 @@ header h1 { font-size: 17px; font-weight: 500; }
 .switch-btn:hover { color: var(--text); background: var(--surface2); }
 
 .section { margin-bottom: 2.5rem; }
-.section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 6px; }
+.section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rl); padding: 1rem 1.25rem; }
-
-/* Tooltip Decorators */
-.tip-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--hint); color: var(--muted); font-size: 10px; font-family: var(--mono); cursor: help; position: relative; font-weight: bold; }
-.tip-icon::after { content: attr(data-tip); position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: #1f232b; color: #e8eaf0; padding: 8px 12px; border: 1px solid var(--border2); border-radius: 6px; font-size: 12px; font-family: var(--font); font-weight: normal; text-transform: none; letter-spacing: normal; line-height: 1.4; width: 240px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease-in-out; z-index: 99; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-.tip-icon:hover::after { opacity: 1; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
 .stat-card { background: var(--surface2); border-radius: var(--r); padding: 0.75rem 1rem; }
@@ -83,7 +78,7 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .btn.primary { background: var(--accent-d); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { background: var(--accent); }
 .btn.sm { font-size: 12px; padding: 4px 10px; }
-.btn.danger { color: #F09595; border-color: transparent; background: transparent; padding: 4px 8px; }
+.btn.danger { color: #F09595; border-color: transparent; background: transparent; padding: 4px 8px; cursor: pointer; }
 .btn.danger:hover { background: rgba(162,45,45,0.15); }
 
 .pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; font-family: var(--mono); }
@@ -100,15 +95,13 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .htable th { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; padding: 0 8px 8px; border-bottom: 1px solid var(--border); }
 .htable td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .htable tr:last-child td { border-bottom: none; }
-.htable tr { cursor: pointer; }
 .htable tr:hover td { background: var(--surface2); }
-.htable tr.selected td { background: rgba(55,138,221,0.12); border-bottom-color: var(--accent); }
 
 .h2h-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .h2h-table th, .h2h-table td { padding: 8px 12px; text-align: center; border: 1px solid var(--border); }
 .h2h-table th { color: var(--muted); font-weight: 500; background: var(--surface2); }
 .h2h-table td.self { background: var(--hint); color: var(--hint); }
-.h2h-pos { background: rgba(99,153,34,0.06); color: #97C459; } .h2h-neg { background: rgba(163,45,45,0.06); color: #F09595; } .h2h-neu { color: var(--muted); }
+.h2h-pos { color: #97C459; } .h2h-neg { color: #F09595; } .h2h-neu { color: var(--muted); }
 
 .links-form { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .link-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 8px; }
@@ -120,10 +113,6 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .loading { font-size: 13px; color: var(--hint); padding: 0.5rem 0; font-family: var(--mono); }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
-textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px; margin-top: 6px; }
-
-/* Timezone explicit decorator badge */
-.tz-badge { font-size: 10px; background: var(--surface2); padding: 1px 4px; border-radius: 3px; color: var(--accent); font-family: var(--mono); font-weight: normal; margin-left: 4px; }
 
 @media (max-width: 720px) {
   .stats-grid { grid-template-columns: repeat(2,1fr); }
@@ -166,10 +155,7 @@ textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px
   </header>
 
   <div class="section">
-    <div class="section-label">
-      Team overview — all time
-      <span class="tip-icon" data-tip="Aggregated operational performance overview across all logged roster sessions.">ⓘ</span>
-    </div>
+    <div class="section-label">Team overview — all time</div>
     <div class="stats-grid" style="margin-bottom:10px">
       <div class="stat-card"><div class="lbl">Total wins</div><div class="val wc" id="s-w">—</div><div class="sub" id="s-w2"></div></div>
       <div class="stat-card"><div class="lbl">Total losses</div><div class="val lc" id="s-l">—</div><div class="sub" id="s-l2"></div></div>
@@ -180,10 +166,7 @@ textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px
   </div>
 
   <div class="section">
-    <div class="section-label">
-      Charts
-      <span class="tip-icon" data-tip="Visual analysis maps plotting current daily win splits against absolute chronological lifetime session paths.">ⓘ</span>
-    </div>
+    <div class="section-label">Charts</div>
     <div class="charts-row">
       <div class="card chart-box">
         <div class="clbl">Today — wins vs losses per player</div>
@@ -205,10 +188,7 @@ textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px
   </div>
 
   <div class="section">
-    <div class="section-label">
-      Head-to-head — win rate when playing together
-      <span class="tip-icon" data-tip="Examines roster synergy. Calculates the row player's win rate explicitly in shared match instances matching the column player's same date and account context profile.">ⓘ</span>
-    </div>
+    <div class="section-label">Head-to-head — win rate when playing together</div>
     <div class="card">
       <p style="font-size:12px; color:var(--muted); margin-bottom:12px">Row player's win rate during sessions where the column player also played (same date + account).</p>
       <div style="overflow-x:auto" id="h2h-wrap"><p class="loading">Loading…</p></div>
@@ -216,13 +196,10 @@ textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px
   </div>
 
   <div class="section">
-    <div class="section-label">
-      Log a match
-      <span class="tip-icon" data-tip="Sync profiles via automatic client-side Statlocker scraping integrations or use manual target overrides below.">ⓘ</span>
-    </div>
+    <div class="section-label">Log a match</div>
     <div class="card" style="margin-bottom:1rem">
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <input type="text" id="statlocker-url" placeholder="Paste Statlocker match URL..." style="flex:1; min-width:240px" />
+        <input type="text" id="statlocker-url" placeholder="Paste Statlocker match URL or Match ID..." style="flex:1; min-width:240px" />
         <button class="btn primary" onclick="importStatlocker()">Import match</button>
       </div>
       <p style="font-size:11px; color:var(--muted); margin-top:8px">Example: https://statlocker.gg/profile/1123931349/matches/83126606/summary</p>
@@ -248,8 +225,12 @@ textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px
           <input type="text" id="log-hero" placeholder="e.g. Infernus" />
         </div>
         <div class="field">
-          <label>Date <span id="log-tz-context" class="tz-badge"></span></label>
+          <label>Date</label>
           <input type="date" id="log-date" />
+        </div>
+        <div class="field">
+          <label>Match ID (Manual)</label>
+          <input type="text" id="log-match-id" placeholder="e.g. 83126606" />
         </div>
         <div class="field full">
           <label>Note</label>
@@ -260,18 +241,15 @@ textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px
         </div>
       </div>
       <div>
-        <div class="section-label" style="margin-bottom:8px">Recent Ingestions</div>
+        <div class="section-label" style="margin-bottom:8px">Recent Entries</div>
         <div id="recent-list"><p class="loading">Loading…</p></div>
       </div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-label">
-      Match history
-      <span class="tip-icon" data-tip="Historical match listing log. Click any row item to reveal the interactive original node note inspector interface layout below.">ⓘ</span>
-    </div>
-    <div class="card" style="margin-bottom: 1rem;">
+    <div class="section-label">Match history</div>
+    <div class="card">
       <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
         <select id="f-player" onchange="renderHistory()" style="font-size:12px">
           <option value="all">All players</option>
@@ -288,38 +266,17 @@ textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px
       </div>
       <div style="overflow-x:auto">
         <table class="htable">
-          <thead><tr><th>#</th><th>Date</th><th>Player</th><th>Account</th><th>Result</th><th>Hero</th><th>Note (Summary)</th><th>Action</th></tr></thead>
+          <thead><tr><th>#</th><th>Date</th><th>Player</th><th>Account</th><th>Result</th><th>Hero</th><th>Match ID</th><th>Note</th><th></th></tr></thead>
           <tbody id="history-body"></tbody>
         </table>
       </div>
       <p class="empty-state" id="history-empty" style="display:none">No matches match the filter.</p>
     </div>
-
-    <div id="match-inspector-card" class="card" style="display:none; border-top: 3px solid var(--accent); transition: all 0.2s;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-        <div>
-          <h3 style="font-size:14px; font-weight:500;" id="inspected-title">Match Inspector</h3>
-          <div style="font-size:11px; color:var(--muted); margin-top:2px;" id="inspected-meta"></div>
-        </div>
-        <button class="btn primary sm" onclick="saveInspectedReview()" id="inspected-save-btn">Save Roster Review Notes</button>
-      </div>
-      <div style="background:var(--surface2); padding:10px 12px; border-radius:6px; border:1px solid var(--border); margin-bottom:12px;">
-        <div style="font-size:11px; color:var(--muted); font-weight:500; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Full Original Note Payload:</div>
-        <div id="inspected-original-note" style="font-size:13px; font-family:var(--mono); word-break:break-all; white-space:pre-wrap;">—</div>
-      </div>
-      <div class="field">
-        <label style="font-weight:500;">Custom Roster &amp; Team Review Notes:</label>
-        <textarea id="inspected-review-text" placeholder="Add custom tactical performance updates, hero review items, draft flaws, build itemization paths for analysis..."></textarea>
-      </div>
-    </div>
   </div>
 
   <div class="two-col section">
     <div>
-      <div class="section-label">
-        Statlocker links
-        <span class="tip-icon" data-tip="Shared reference directories tracking team account shortcuts across tracking utilities.">ⓘ</span>
-      </div>
+      <div class="section-label">Statlocker links</div>
       <div class="card">
         <div class="links-form">
           <input type="text" id="link-url" placeholder="https://statlocker.gg/…" style="flex:2; min-width:0" />
@@ -330,10 +287,7 @@ textarea#inspected-review-text { width: 100%; resize: vertical; min-height: 80px
       </div>
     </div>
     <div>
-      <div class="section-label">
-        Team notes
-        <span class="tip-icon" data-tip="Persistent scratchpad offering markdown notes syncing to active roster connections.">ⓘ</span>
-      </div>
+      <div class="section-label">Team notes</div>
       <div class="card">
         <textarea id="notes" placeholder="Draft patterns, hero ideas, things to review…" oninput="queueNoteSave()"></textarea>
         <div style="font-size:11px; color:var(--hint); margin-top:6px" id="notes-status">Shared with team</div>
@@ -356,25 +310,10 @@ let me = localStorage.getItem('dl_me') || null;
 let allMatches = [], allLinks = [];
 let chartToday = null, chartTotal = null;
 let noteTimer = null;
-let selectedMatchId = null;
 
-// TIMEZONE HANDLER: Adjust dates seamlessly based on user selection
-function today() {
-  const d = new Date();
-  if (me === 'Lantic') {
-    // Offset standard generation by +6 hours to align EU day changes with NA team logs
-    d.setHours(d.getHours() + 6);
-  }
-  return d.toISOString().slice(0,10);
-}
+function today() { return new Date().toISOString().slice(0,10); }
 
-function decorateDateString(dateStr) {
-  if (!dateStr) return '—';
-  // If the logged session belongs to Lantic, tag context visual metadata 
-  return me === 'Lantic' ? `${dateStr.slice(5)} (EU)` : dateStr.slice(5);
-}
-
-// ── SUPABASE REST API ENGINE ───────────────────────────────────────────────
+// ── SUPABASE API ───────────────────────────────────────────────────────────
 async function sb(path, opts = {}) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
@@ -387,7 +326,6 @@ async function sb(path, opts = {}) {
 }
 const getMatches = () => sb('matches?select=*&order=id.asc');
 const postMatch  = m => sb('matches', { method:'POST', body: JSON.stringify(m) });
-const patchMatch = (id, fields) => sb('matches?id=eq.'+id, { method:'PATCH', body: JSON.stringify(fields) });
 const delMatch   = id => sb('matches?id=eq.'+id, { method:'DELETE', prefer:'' });
 const getLinks   = () => sb('links?select=*&order=id.asc');
 const postLink   = l => sb('links', { method:'POST', body: JSON.stringify(l) });
@@ -399,7 +337,7 @@ async function putNotes(content) {
   else await sb('notes', { method:'POST', body: JSON.stringify({ content }) });
 }
 
-// ── SETUP SCREEN MANAGERS ──────────────────────────────────────────────────
+// ── INITIALIZATION ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   if (DEMO) document.getElementById('config-warn').style.display = '';
   if (me) enterMain();
@@ -418,22 +356,12 @@ async function enterMain() {
   document.getElementById('pdot').style.background = COLORS[me];
   document.getElementById('log-player').value = me;
   document.getElementById('log-date').value = today();
-  
-  const tzLabel = document.getElementById('log-tz-context');
-  tzLabel.textContent = me === 'Lantic' ? 'EU (UTC+2 adjusted)' : 'NA Local';
-
   sync('Loading…');
   try {
-    if (DEMO) {
-      allMatches = [];
-      allLinks = [];
-      document.getElementById('notes').value = '(demo mode)';
-    } else {
-      const [m, l, n] = await Promise.all([getMatches(), getLinks(), getNotes()]);
-      allMatches = m || [];
-      allLinks   = l || [];
-      document.getElementById('notes').value = (n && n.length) ? n[0].content : '';
-    }
+    const [m, l, n] = await Promise.all([getMatches(), getLinks(), getNotes()]);
+    allMatches = m || [];
+    allLinks   = l || [];
+    document.getElementById('notes').value = (n && n.length) ? n[0].content : '';
     sync('');
     renderAll();
   } catch(e) { sync('Error: '+e.message); }
@@ -441,7 +369,7 @@ async function enterMain() {
 
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
-// ── CORE RENDERING ROUTINES ────────────────────────────────────────────────
+// ── RENDER ENGINE ──────────────────────────────────────────────────────────
 function renderAll() {
   renderTeam(); renderCards(); renderCharts(); renderH2H();
   renderRecent(); renderHistory(); renderLinks();
@@ -577,9 +505,9 @@ function renderRecent() {
       <span class="pill ${m.player}">${m.player}</span>
       <span class="pill ${m.result}">${m.result}</span>
       <span class="pill ${m.account}">${m.account}</span>
-      ${m.hero?`<span style="font-size:12px; font-weight:500;">${m.hero}</span>`:''}
+      ${m.hero?`<span style="font-size:12px">${m.hero}</span>`:''}
       ${m.note?`<span style="font-size:12px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.note}</span>`:'<span style="flex:1"></span>'}
-      <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">${decorateDateString(m.date)}</span>
+      <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">${m.date.slice(5)}</span>
     </div>`).join('');
 }
 
@@ -588,32 +516,26 @@ function renderHistory() {
   const fa=document.getElementById('f-account').value;
   const fr=document.getElementById('f-result').value;
   const fh=(document.getElementById('f-hero').value||'').toLowerCase();
-  
   let rows=[...allMatches].sort((a,b)=>b.id-a.id);
   if(fp!=='all')rows=rows.filter(x=>x.player===fp);
   if(fa!=='all')rows=rows.filter(x=>x.account===fa);
   if(fr!=='all')rows=rows.filter(x=>x.result===fr);
   if(fh)rows=rows.filter(x=>(x.hero||'').toLowerCase().includes(fh));
-  
   const body=document.getElementById('history-body');
   const empty=document.getElementById('history-empty');
   if(!rows.length){body.innerHTML='';empty.style.display='';return;}
   empty.style.display='none';
-  
   body.innerHTML=rows.map((m,i)=>`
-    <tr id="match-row-${m.id}" class="${selectedMatchId === m.id ? 'selected' : ''}" onclick="inspectMatchRow(${m.id})">
+    <tr>
       <td style="color:var(--hint);font-family:var(--mono)">${rows.length-i}</td>
-      <td style="font-family:var(--mono);font-size:12px">${decorateDateString(m.date)}</td>
+      <td style="font-family:var(--mono);font-size:12px">${m.date.slice(5)}</td>
       <td><span class="pill ${m.player}">${m.player}</span></td>
       <td><span class="pill ${m.account}">${m.account}</span></td>
       <td><span class="pill ${m.result}">${m.result}</span></td>
-      <td style="font-size:12px; font-weight:500;">${m.hero||'—'}</td>
-      <td style="color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">
-        ${m.note || '<span style="color:var(--hint)">No notes</span>'}
-      </td>
-      <td>
-        <button class="btn danger sm" onclick="removeMatch(event, ${m.id})">✕</button>
-      </td>
+      <td style="font-size:12px">${m.hero||'<span style="color:var(--hint)">—</span>'}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${m.match_id||'—'}</td>
+      <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${m.note||''}</td>
+      <td><button class="btn danger sm" onclick="removeMatch(${m.id})">✕</button></td>
     </tr>`).join('');
 }
 
@@ -631,177 +553,46 @@ function renderLinks() {
     </div>`).join('');
 }
 
-// ── MATCH DETAILS NOTE INSPECTOR ──────────────────────────────────────────
-function inspectMatchRow(id) {
-  selectedMatchId = id;
-  const matchObj = allMatches.find(x => x.id === id);
-  if (!matchObj) return;
-
-  // Highlight selected line row
-  document.querySelectorAll('#history-body tr').forEach(r => r.classList.remove('selected'));
-  const targetRow = document.getElementById(`match-row-${id}`);
-  if (targetRow) targetRow.classList.add('selected');
-
-  // Populate interactive view panels
-  document.getElementById('inspected-title').textContent = `Reviewing entry from ${matchObj.player} (${matchObj.hero || 'Unknown Hero'})`;
-  document.getElementById('inspected-meta').textContent = `Account Context: ${matchObj.account.toUpperCase()} | Event Outcome: ${matchObj.result.toUpperCase()} | System Timestamp Ref: ${matchObj.date}`;
-  document.getElementById('inspected-original-note').textContent = matchObj.note || '(No text payload inside original data element)';
-  
-  // Custom review field loading (supporting target field schemas match_notes)
-  document.getElementById('inspected-review-text').value = matchObj.match_notes || '';
-  document.getElementById('match-inspector-card').style.display = 'block';
-}
-
-async function saveInspectedReview() {
-  if (!selectedMatchId) return alert('Select a history log line first');
-  const txtVal = document.getElementById('inspected-review-text').value.trim();
-  const btn = document.getElementById('inspected-save-btn');
-  
-  btn.textContent = 'Saving...';
-  sync('Updating notes...');
-  
-  try {
-    if (!DEMO) {
-      await patchMatch(selectedMatchId, { match_notes: txtVal });
-    }
-    const idx = allMatches.findIndex(x => x.id === selectedMatchId);
-    if (idx !== -1) allMatches[idx].match_notes = txtVal;
-    
-    btn.textContent = 'Saved!';
-    sync('Notes updated successfully');
-    setTimeout(() => { btn.textContent = 'Save Roster Review Notes'; }, 1200);
-    renderAll();
-  } catch(e) {
-    btn.textContent = 'Error';
-    sync('Save failed: ' + e.message);
-  }
-}
-
-// ── MUTATION OPERATIONS ───────────────────────────────────────────────────
+// ── MUTATIONS & ACTIONS ────────────────────────────────────────────────────
 async function logMatch() {
-  sync('Logging match...');
+  sync('Logging match…');
   const record = {
     player: document.getElementById('log-player').value,
     account: document.getElementById('log-account').value,
     result: document.getElementById('log-result').value,
     hero: document.getElementById('log-hero').value.trim(),
     date: document.getElementById('log-date').value || today(),
-    note: document.getElementById('log-note').value.trim()
+    note: document.getElementById('log-note').value.trim(),
+    match_id: document.getElementById('log-match-id').value.trim()
   };
-
   try {
-    if (DEMO) {
-      allMatches.push({ id: Date.now(), ...record, match_notes: '' });
-    } else {
-      const r = await postMatch(record);
-      allMatches.push(r[0]);
-    }
+    const r = await postMatch(record);
+    allMatches.push(r[0]);
     document.getElementById('log-hero').value = '';
     document.getElementById('log-note').value = '';
+    document.getElementById('log-match-id').value = '';
     sync('Logged successfully');
     renderAll();
-  } catch(e) {
-    sync('Error logging');
-    alert(e.message);
-  }
+  } catch(e) { sync('Error logging'); alert(e.message); }
 }
 
-async function removeMatch(event, id) {
-  if (event && event.stopPropagation) event.stopPropagation();
-  if (!confirm('Are you sure you want to permanently delete this match record?')) return;
-  
-  sync('Dropping match entry...');
+async function removeMatch(id) {
+  if (!confirm('Erase this match row record permanently?')) return;
+  sync('Removing match…');
   try {
-    if (!DEMO) {
-      await delMatch(id);
-    }
-    allMatches = allMatches.filter(x => x.id !== id);
-    
-    if (selectedMatchId === id) {
-      selectedMatchId = null;
-      document.getElementById('match-inspector-card').style.display = 'none';
-    }
-    
-    sync('Match entry deleted');
+    await delMatch(id);
+    allMatches = allMatches.filter(x=>x.id!==id);
+    sync('Removed successfully');
     renderAll();
-  } catch(e) {
-    sync('Delete failed');
-    alert('Failed to drop row: ' + e.message);
-  }
+  } catch(e) { sync('Error deleting'); alert(e.message); }
 }
 
-// ── AUTOMATED STATLOCKER ENGINE ───────────────────────────────────────────
-async function importStatlocker() {
-  const urlVal = document.getElementById('statlocker-url').value.trim();
-  if (!urlVal) return alert('Please input a valid statlocker target url string.');
-  
-  const tokens = urlVal.split('/');
-  const matchIdx = tokens.indexOf('matches');
-  if (matchIdx === -1 || !tokens[matchIdx + 1]) {
-    return alert('Could not parse out the Match ID token from link address structure.');
-  }
-  const matchId = tokens[matchIdx + 1];
-  sync('Fetching profile stream...');
-
-  try {
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(urlVal)}`;
-    const resp = await fetch(proxy);
-    if (!resp.ok) throw new Error('CORS proxy pipeline error');
-    const wrapper = await resp.json();
-    const html = wrapper.contents;
-
-    let result = 'win';
-    if (html.toLowerCase().includes('defeat') || html.toLowerCase().includes('lost')) {
-      result = 'loss';
-    }
-
-    const heroList = ['Abrams','Bebop','Dynamo','Grey Thorn','Haze','Infernus','Ivy','Kelvin','Lash','McGinnis','Mo & Krill','Paradox','Pocket','Seven','Shiv','Vindicta','Viscous','Warden','Wraith','Yamato','Mirage'];
-    let hero = '';
-    for (const h of heroList) {
-      if (html.includes(h)) { hero = h; break; }
-    }
-
-    let duration = '';
-    const durationMatch = html.match(/(\d{1,2}:\d{2})/);
-    if (durationMatch) duration = durationMatch[1];
-
-    let note = `Imported via Statlocker • Match ID: ${matchId}`;
-    if (duration) note += ` • Duration: ${duration}`;
-
-    const record = {
-      player: me,
-      account: document.getElementById('log-account').value,
-      result: result,
-      hero: hero || null,
-      date: today(),
-      note: note,
-      match_notes: ''
-    };
-
-    if (DEMO) {
-      allMatches.push({ id: Date.now(), ...record });
-    } else {
-      const r = await postMatch(record);
-      allMatches.push(r[0]);
-    }
-
-    document.getElementById('statlocker-url').value = '';
-    sync(`Scraped ${hero || 'Match'}!`);
-    renderAll();
-  } catch(e) {
-    console.error(e);
-    sync('Scrape node error');
-    alert('Import failed: ' + e.message);
-  }
-}
-
-// ── SCRATCHPAD UTILS ──────────────────────────────────────────────────────
 function queueNoteSave() {
   document.getElementById('notes-status').textContent = 'Typing...';
   clearTimeout(noteTimer);
   noteTimer = setTimeout(async () => {
     try {
-      if (!DEMO) await putNotes(document.getElementById('notes').value);
+      await putNotes(document.getElementById('notes').value);
       document.getElementById('notes-status').textContent = 'All changes saved to Supabase';
     } catch(e) { document.getElementById('notes-status').textContent = 'Autosave error'; }
   }, 1000);
@@ -813,12 +604,8 @@ async function addLink() {
   if(!url) return;
   sync('Adding link…');
   try {
-    if (!DEMO) {
-      const r = await postLink({ url, tag, added_by: me });
-      allLinks.push(r[0]);
-    } else {
-      allLinks.push({ id: Date.now(), url, tag, added_by: me });
-    }
+    const r = await postLink({ url, tag, added_by: me });
+    allLinks.push(r[0]);
     document.getElementById('link-url').value = '';
     document.getElementById('link-tag').value = '';
     sync(''); renderLinks();
@@ -828,7 +615,7 @@ async function addLink() {
 async function removeLink(id) {
   sync('Removing link…');
   try {
-    if (!DEMO) await delLink(id);
+    await delLink(id);
     allLinks = allLinks.filter(x=>x.id!==id);
     sync(''); renderLinks();
   } catch(e) { sync('Error: '+e.message); }
@@ -836,17 +623,67 @@ async function removeLink(id) {
 
 function exportCSV() {
   if (!allMatches.length) return alert('No data available');
-  let csv = 'ID,Date,Player,Account,Result,Hero,Notes,Review\n';
+  let csv = 'ID,Date,Player,Account,Result,Hero,Match_ID,Notes\n';
   allMatches.forEach(m => {
-    csv += `"${m.id}","${m.date}","${m.player}","${m.account}","${m.result}","${m.hero||''}","${(m.note||'').replace(/"/g, '""')}","${(m.match_notes||'').replace(/"/g, '""')}"\n`;
+    csv += `"${m.id}","${m.date}","${m.player}","${m.account}","${m.result}","${m.hero||''}","${m.match_id||''}","${(m.note||'').replace(/"/g, '""')}"\n`;
   });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.setAttribute('download', `deadlock_tracker_export.csv`);
+  link.setAttribute('download', 'deadlock_tracker_export.csv');
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+// ── MATCH ID FETCH AUTOMATION ────────────────────────────────────────────────
+async function importStatlocker() {
+  const input = document.getElementById('statlocker-url').value.trim();
+  if (!input) return;
+
+  // Handles raw number IDs OR copy-pasted URLs cleanly
+  const matchIdRegex = /(?:matches\/)?(\d+)/;
+  const match = input.match(matchIdRegex);
+  if (!match) {
+    alert("Could not pull a valid match numeric ID from input!");
+    return;
+  }
+  
+  const matchId = match[1];
+  sync('Querying Supabase edge router...');
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ matchId: matchId })
+    });
+
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error);
+
+    const matchData = result.match;
+
+    // Detect game properties dynamically from response array structure
+    // (Adjust paths below depending on exact JSON payload endpoints used)
+    let discoveredHero = matchData.hero_name || '';
+    let discoveredWin = matchData.win === true || matchData.result === 'win';
+
+    // Auto-fill form dashboard panels
+    document.getElementById('log-hero').value = discoveredHero;
+    document.getElementById('log-result').value = discoveredWin ? 'win' : 'loss';
+    document.getElementById('log-match-id').value = matchId;
+    document.getElementById('log-note').value = 'Fetched via Edge server';
+    
+    sync('Data loaded! Confirm values and hit Log Match.');
+  } catch (e) {
+    console.error(e);
+    sync('Import workflow error');
+    alert('Server data fetch failed: ' + e.message);
+  }
 }
 </script>
 </body>
