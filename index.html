@@ -631,7 +631,7 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
-// ── NEW DATA PIPELINE (CLEAN JSON PATHS) ───────────────────────────────────
+// ── DATA PIPELINE (UPDATED FOR DEADLOCK-API KEY NAMES) ────────────────────
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url').value.trim();
   if (!input) return;
@@ -659,15 +659,31 @@ async function importMatchViaId() {
     const result = await response.json();
     if (!result.success) throw new Error(result.error);
 
+    // The raw data payload from api.deadlock-api.com
     const metadata = result.match;
+    console.log("Raw match payload received:", metadata); // This lets you inspect the object in your Console
 
-    // Direct JSON parameter interpretation
-    let matchDuration = metadata.duration_s ? Math.floor(metadata.duration_s / 60) + "m" : "";
-    
+    // 1. Calculate match duration text
+    let matchDuration = "";
+    if (metadata.match_duration_s) {
+      matchDuration = Math.floor(metadata.match_duration_s / 60) + "m";
+    } else if (metadata.duration_s) {
+      matchDuration = Math.floor(metadata.duration_s / 60) + "m";
+    }
+
+    // 2. Set UI values safely based on API response structures
     document.getElementById('log-match-id').value = matchId;
-    document.getElementById('log-note').value = `Duration: ${matchDuration}`;
     
-    sync('Basic structural info imported! Fill hero/result and submit.');
+    if (matchDuration) {
+      document.getElementById('log-note').value = `Duration: ${matchDuration}`;
+    } else {
+      document.getElementById('log-note').value = `Fetched ID: ${matchId}`;
+    }
+    
+    // Note: Because this public endpoint returns general match data (and doesn't know *which* // of the 12 players in the lobby is you), you'll just select your Hero and Result 
+    // manually as normal, then press "Log match"!
+    
+    sync('Match ID and metadata imported! Select your Hero/Result and submit.');
   } catch (e) {
     console.error(e);
     sync('Import pipeline error');
