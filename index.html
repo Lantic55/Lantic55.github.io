@@ -312,7 +312,7 @@ let noteTimer = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
 
-// Squad Registry Matrix
+// Squad Steam ID Registry Matrix
 const STEAM_MAPPING = {
   "76811383":          { name: "Neel",   account: "main" },
   "99197018":          { name: "Neel",   account: "main" }, 
@@ -327,14 +327,14 @@ const STEAM_MAPPING = {
   "651018694":         { name: "Ollie",  account: "alt" }   
 };
 
-// Valve Hero Registry MatrixFallback Lookup IDs
+// Valve API Hero Mappings
 const HERO_IDS = {
   1: "Infernus", 2: "Abrams", 3: "Paradox", 4: "Lady Geist", 
   6: "Apollo", 7: "Grey Talon", 8: "Vindicta", 9: "Ivy", 
   10: "Seven", 11: "Lash", 12: "Bebop", 13: "Viscous", 
   14: "Haze", 15: "Pocket", 16: "Mirage", 17: "Mo & Krill", 
   18: "Dynamo", 19: "Wraith", 20: "Yamato", 25: "Shiv", 
-  31: "McGinnis", 52: "Warden"
+  31: "McGinnis", 52: "Warden", 55: "Calico"
 };
 
 async function sb(path, opts = {}) {
@@ -392,7 +392,7 @@ async function enterMain() {
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
 // ============================================================================
-// AUTO-FETCH ENGINE (FORCED WIN, TRUE HISTORICAL TIMESTAMPS)
+// REAL DYNAMIC FETCH PARSER (NO HARDCODING)
 // ============================================================================
 async function importMatchViaId() {
   const input = document.getElementById('statlocker-url')?.value.trim();
@@ -406,151 +406,123 @@ async function importMatchViaId() {
   }
   
   const matchId = match[1];
-  const MAX_ATTEMPTS = 4; 
+  sync('Scanning match cluster...');
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    if (typeof sync === 'function') {
-      sync(attempt === 1 ? 'Scanning match cluster...' : `Match sync pending... Retrying (Attempt ${attempt}/${MAX_ATTEMPTS})`);
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ matchId: matchId })
+    });
+
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error);
+
+    const payload = result.match;
+
+    // Helper functions to find variables in deeply nested APIs
+    function findPlayersArray(obj) {
+      if (!obj || typeof obj !== 'object') return null;
+      if (Array.isArray(obj.players)) return obj.players;
+      if (Array.isArray(obj.player_stats)) return obj.player_stats;
+      for (let key in obj) {
+        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+          const found = findPlayersArray(obj[key]);
+          if (found) return found;
+        }
+      }
+      return null;
     }
 
-    try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`
-        },
-        body: JSON.stringify({ matchId: matchId })
-      });
-
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
-
-      const payload = result.match;
-      console.log("Raw match payload received:", payload);
-
-      function findPlayersArray(obj) {
-        if (!obj || typeof obj !== 'object') return null;
-        if (Array.isArray(obj.players)) return obj.players;
-        if (Array.isArray(obj.player_stats)) return obj.player_stats;
-        for (let key in obj) {
-          if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
-            const found = findPlayersArray(obj[key]);
-            if (found) return found;
-          }
+    function findKeyDeep(obj, keyName) {
+      if (!obj || typeof obj !== 'object') return null;
+      if (obj[keyName] !== undefined) return obj[keyName];
+      for (let key in obj) {
+        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+          const found = findKeyDeep(obj[key], keyName);
+          if (found !== null) return found;
         }
-        return null;
       }
+      return null;
+    }
 
-      function findKeyDeep(obj, keyName) {
-        if (!obj || typeof obj !== 'object') return null;
-        if (obj[keyName] !== undefined) return obj[keyName];
-        for (let key in obj) {
-          if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
-            const found = findKeyDeep(obj[key], keyName);
-            if (found !== null) return found;
-          }
-        }
-        return null;
-      }
+    const playersInMatch = findPlayersArray(payload);
+    if (!playersInMatch) throw new Error("Could not parse player metrics array.");
 
-      const playersInMatch = findPlayersArray(payload);
-      if (!playersInMatch) throw new Error("Could not parse player metrics array.");
+    const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
+    const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
+    
+    const startTimeRaw = findKeyDeep(payload, 'start_time');
+    let matchFormattedDate = today();
+    if (startTimeRaw) {
+      const matchDateObj = new Date(Number(startTimeRaw) * 1000);
+      const mm = String(matchDateObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(matchDateObj.getDate()).padStart(2, '0');
+      matchFormattedDate = `${mm}-${dd}`;
+    }
 
-      const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
-      const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
+    let databaseUploadPromises = [];
+    let discoveredNames = [];
+
+    // Loop through the players using a safe soft comparison to prevent type errors
+    for (const pData of playersInMatch) {
+      const accountIdNum = pData.account_id || pData.player_id;
+      if (!accountIdNum) continue;
       
-      // Pull and extract the real match timestamp
-      const startTimeRaw = findKeyDeep(payload, 'start_time');
-      let matchFormattedDate = today();
-      if (startTimeRaw) {
-        const matchDateObj = new Date(Number(startTimeRaw) * 1000);
-        const mm = String(matchDateObj.getMonth() + 1).padStart(2, '0');
-        const dd = String(matchDateObj.getDate()).padStart(2, '0');
-        matchFormattedDate = `${mm}-${dd}`;
-      }
+      const idStr = String(accountIdNum).trim();
+      if (!STEAM_MAPPING[idStr]) continue;
 
-      let databaseUploadPromises = [];
-      let discoveredNames = [];
+      const squadMember = STEAM_MAPPING[idStr];
+      discoveredNames.push(squadMember.name);
 
-      for (const pData of playersInMatch) {
-        const idStr = String(pData.account_id || pData.player_id).trim();
-        if (!STEAM_MAPPING[idStr]) continue;
+      // EXTRACT PURE HERO VALUES ACCORDING TO LIVE TELEMETRY PAYLOAD ID
+      const heroId = Number(pData.hero_id);
+      const heroName = HERO_IDS[heroId] || `Hero ID: ${heroId}`;
 
-        const squadMember = STEAM_MAPPING[idStr];
-        discoveredNames.push(squadMember.name);
+      const record = {
+        player: squadMember.name,
+        account: squadMember.account,
+        result: "win", // Forced win logic for group queuing tracker remains intact
+        hero: heroName,
+        date: matchFormattedDate, 
+        note: `Auto-Fetched | Duration: ${durationStr}`,
+        match_id: matchId
+      };
 
-        let heroName = HERO_IDS[pData.hero_id] || `Hero ID: ${pData.hero_id}`;
-        if (squadMember.name === "Wren") heroName = "Dynamo";
-        if (squadMember.name === "Neel") heroName = "Yamato";
-        if (squadMember.name === "Lantic") heroName = "Apollo";
-        if (squadMember.name === "Ollie") heroName = "Haze";
+      databaseUploadPromises.push(postMatch(record));
+    }
 
-        // Squad queued and won together. Force "win" for everyone found
-        const record = {
-          player: squadMember.name,
-          account: squadMember.account,
-          result: "win", 
-          hero: heroName,
-          date: matchFormattedDate, 
-          note: `Auto-Fetched | Duration: ${durationStr}`,
-          match_id: matchId
-        };
-
-        databaseUploadPromises.push(postMatch(record));
-      }
-
-      if (databaseUploadPromises.length === 0) {
-        const fallbackSquad = [
-          { name: "Lantic", hero: "Apollo" },
-          { name: "Neel", hero: "Yamato" },
-          { name: "Ollie", hero: "Haze" },
-          { name: "Wren", hero: "Dynamo" }
-        ];
-        for (const member of fallbackSquad) {
-          const record = {
-            player: member.name,
-            account: "main",
-            result: "win",
-            hero: member.hero,
-            date: matchFormattedDate,
-            note: `Auto-Fetched | Duration: ${durationStr}`,
-            match_id: matchId
-          };
-          databaseUploadPromises.push(postMatch(record));
-          discoveredNames.push(member.name);
-        }
-      }
-
-      const uploadedRecords = await Promise.all(databaseUploadPromises);
-      uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
-      
-      if (typeof sync === 'function') sync(`Logged match data for: ${discoveredNames.join(', ')}`);
-      renderAll();
-      return;
-
-    } catch (e) {
-      console.error(e);
-      if (typeof sync === 'function') sync('Import pipeline error');
-      alert('Match fetch failed: ' + e.message);
+    if (databaseUploadPromises.length === 0) {
+      sync('No registered squad mates found in telemetry logs.');
+      alert('Match loaded, but none of your registered account IDs matched players inside the payload.');
       return;
     }
+
+    const uploadedRecords = await Promise.all(databaseUploadPromises);
+    uploadedRecords.forEach(r => { if (r && r[0]) allMatches.push(r[0]); });
+    
+    sync(`Logged match data for: ${discoveredNames.join(', ')}`);
+    renderAll();
+
+  } catch (e) {
+    console.error(e);
+    sync('Import pipeline error');
+    alert('Match fetch failed: ' + e.message);
   }
 }
 
 // ============================================================================
-// CLEAN COMBINED MASTER RENDERING SUITE (CHRONOLOGICAL SORTING ORDER)
+// MASTER RENDERING ENGINES
 // ============================================================================
 function renderAll() {
-  // Chronological multi-level sort engine (Newest Date -> Grouped together by Match ID Descending)
   allMatches.sort((a, b) => {
-    if (b.date !== a.date) {
-      return b.date.localeCompare(a.date);
-    }
+    if (b.date !== a.date) return b.date.localeCompare(a.date);
     return Number(b.match_id || 0) - Number(a.match_id || 0);
   });
 
-  // Execute sub-rendering processes
   renderTeam();
   renderCards();
   renderCharts();
