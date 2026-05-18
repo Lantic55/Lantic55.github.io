@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Deadlock Team Tracker & Lab Deck</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<title>Deadlock team tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -17,84 +17,68 @@
   --r: 8px; --rl: 12px;
 }
 body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; min-height: 100vh; }
-.app { max-width: 1140px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+.app { max-width: 1040px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
 
 #setup-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 1.5rem; }
-#setup-screen h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
-.player-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; width: 100%; max-width: 340px; }
-.player-btn { padding: 1.25rem; border: 1px solid var(--border2); border-radius: var(--rl); background: var(--surface); cursor: pointer; font-family: var(--font); font-size: 15px; font-weight: 500; color: var(--text); transition: all 0.2s ease; }
-.player-btn:hover { background: var(--surface2); transform: translateY(-2px); }
+#setup-screen h1 { font-size: 20px; font-weight: 500; }
+.player-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; width: 100%; max-width: 320px; }
+.player-btn { padding: 1rem; border: 1px solid var(--border2); border-radius: var(--rl); background: var(--surface); cursor: pointer; font-family: var(--font); font-size: 15px; font-weight: 500; color: var(--text); transition: background 0.15s; }
+.player-btn:hover { background: var(--surface2); }
 
 #main-screen { display: none; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; flex-wrap: wrap; gap: 10px; }
-header h1 { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
+header h1 { font-size: 17px; font-weight: 500; }
 .hdr-right { display: flex; align-items: center; gap: 12px; }
 .sync-txt { font-size: 11px; color: var(--muted); font-family: var(--mono); }
-.active-pill { display: flex; align-items: center; gap: 7px; font-size: 13px; background: var(--surface); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
+.active-pill { display: flex; align-items: center; gap: 7px; font-size: 13px; }
 .pdot { width: 9px; height: 9px; border-radius: 50%; }
-.switch-btn { font-size: 11px; padding: 1px 6px; border: 1px solid var(--border2); border-radius: var(--r); background: transparent; color: var(--muted); cursor: pointer; }
+.switch-btn { font-size: 12px; padding: 3px 10px; border: 1px solid var(--border2); border-radius: var(--r); background: transparent; color: var(--muted); cursor: pointer; font-family: var(--font); }
 .switch-btn:hover { color: var(--text); background: var(--surface2); }
 
 .section { margin-bottom: 2.5rem; }
-.section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rl); padding: 1.25rem; }
+.section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rl); padding: 1rem 1.25rem; }
 
-.stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
-.stat-card { background: var(--surface2); border-radius: var(--r); padding: 0.85rem 1.1rem; border: 1px solid transparent; }
+.stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+.stat-card { background: var(--surface2); border-radius: var(--r); padding: 0.75rem 1rem; }
 .stat-card .lbl { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-.stat-card .val { font-size: 24px; font-weight: 500; font-family: var(--mono); }
+.stat-card .val { font-size: 22px; font-weight: 500; font-family: var(--mono); }
 .stat-card .sub { font-size: 11px; color: var(--hint); margin-top: 2px; font-family: var(--mono); }
 .wc { color: #97C459; } .lc { color: #F09595; } .ac { color: var(--accent); }
 
-.player-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
-.player-card { background: var(--surface2); border-radius: var(--r); padding: 0.85rem 1.1rem; border-top: 3px solid; transition: transform 0.15s; }
-.player-card:hover { transform: translateY(-1px); }
-.player-card .pname { font-size: 13px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
-.player-card .pstat { font-size: 11px; color: var(--muted); line-height: 1.8; font-family: var(--mono); }
-
-.streak-flare { font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: bold; font-family: var(--mono); text-transform: uppercase; }
-.flare-hot { background: rgba(151,196,89,0.2); color: #97C459; animation: pulseGlow 1.5s infinite; }
-.flare-tilt { background: rgba(240,149,149,0.15); color: #F09595; }
-
-@keyframes pulseGlow {
-  0% { box-shadow: 0 0 0 0 rgba(151,196,89,0.3); }
-  70% { box-shadow: 0 0 0 5px rgba(151,196,89,0); }
-  100% { box-shadow: 0 0 0 0 rgba(151,196,89,0); }
-}
+.player-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+.player-card { background: var(--surface2); border-radius: var(--r); padding: 0.75rem 1rem; border-top: 2px solid; }
+.player-card .pname { font-size: 12px; font-weight: 500; margin-bottom: 6px; }
+.player-card .pstat { font-size: 11px; color: var(--muted); line-height: 1.9; font-family: var(--mono); }
 
 .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .chart-box .clbl { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-.chart-wrap { position: relative; height: 210px; }
+.chart-wrap { position: relative; height: 200px; }
 .legend { display: flex; gap: 12px; font-size: 11px; color: var(--muted); margin-bottom: 8px; flex-wrap: wrap; }
 .ldot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 3px; vertical-align: middle; }
 
-.synergy-matrix-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin-top: 8px; }
-.synergy-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; }
-.synergy-card .title { font-weight: 500; font-size: 12px; margin-bottom: 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; display: flex; justify-content: space-between; }
-.synergy-card .line { font-size: 11px; font-family: var(--mono); margin-bottom: 3px; display: flex; justify-content: space-between; }
-
-.log-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 1.5rem; }
-.log-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+.log-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .log-form .full { grid-column: 1/-1; }
 .field { display: flex; flex-direction: column; gap: 4px; }
-.field label { font-size: 11px; color: var(--muted); font-weight: 500; }
+.field label { font-size: 11px; color: var(--muted); }
 
 select, input[type=text], input[type=date], textarea {
   background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r);
   color: var(--text); font-family: var(--font); font-size: 13px;
-  padding: 8px 12px; outline: none; transition: border-color 0.15s; width: 100%;
+  padding: 7px 10px; outline: none; transition: border-color 0.15s; width: 100%;
 }
 select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 
-.btn { background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r); color: var(--text); font-family: var(--font); font-size: 13px; padding: 8px 16px; cursor: pointer; transition: all 0.15s; white-space: nowrap; font-weight: 500; }
-.btn:hover { background: var(--surface); border-color: var(--muted); }
+.btn { background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r); color: var(--text); font-family: var(--font); font-size: 13px; padding: 7px 14px; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+.btn:hover { background: var(--surface); }
 .btn.primary { background: var(--accent-d); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { background: var(--accent); }
 .btn.sm { font-size: 12px; padding: 4px 10px; }
 .btn.danger { color: #F09595; border-color: transparent; background: transparent; padding: 4px 8px; }
 .btn.danger:hover { background: rgba(162,45,45,0.15); }
 
-.pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; font-family: var(--mono); text-transform: capitalize; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; font-family: var(--mono); }
 .pill.win  { background: rgba(59,109,17,0.2);   color: #97C459; }
 .pill.loss { background: rgba(162,45,45,0.2);   color: #F09595; }
 .pill.main { background: rgba(55,138,221,0.15); color: #85B7EB; }
@@ -104,60 +88,42 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .pill.Ollie  { background: rgba(216,90,48,0.15);   color: #F0997B; }
 .pill.Wren   { background: rgba(212,83,126,0.15);  color: #ED93B1; }
 
-.session-header { background: var(--surface2); padding: 6px 12px; font-family: var(--mono); font-size: 11px; color: var(--muted); border-left: 3px solid var(--accent); display: flex; justify-content: space-between; margin-top: 14px; border-radius: 0 var(--r) var(--r) 0; }
-
 .htable { width: 100%; border-collapse: collapse; font-size: 13px; }
-.htable th { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
-.htable td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.htable th { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; padding: 0 8px 8px; border-bottom: 1px solid var(--border); }
+.htable td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .htable tr:last-child td { border-bottom: none; }
+.htable tr { cursor: pointer; }
 .htable tr:hover td { background: var(--surface2); }
+.htable tr.selected td { background: rgba(55,138,221,0.15); border-bottom-color: var(--accent); }
 
 .h2h-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.h2h-table th, .h2h-table td { padding: 10px 12px; text-align: center; border: 1px solid var(--border); }
+.h2h-table th, .h2h-table td { padding: 8px 12px; text-align: center; border: 1px solid var(--border); }
 .h2h-table th { color: var(--muted); font-weight: 500; background: var(--surface2); }
 .h2h-table td.self { background: var(--hint); color: var(--hint); }
-.h2h-pos { color: #97C459; background: rgba(59,109,17,0.04); } 
-.h2h-neg { color: #F09595; background: rgba(162,45,45,0.04); } 
-.h2h-neu { color: var(--muted); }
+.h2h-pos { color: #97C459; } .h2h-neg { color: #F09595; } .h2h-neu { color: var(--muted); }
 
-.links-form { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-.link-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 8px; }
-.link-item:last-child { border-bottom: none; }
-.link-item a { color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
-.link-item a:hover { text-decoration: underline; }
-.link-tag { font-size: 11px; color: var(--muted); padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; white-space: nowrap; }
 .empty-state { font-size: 13px; color: var(--hint); padding: 0.75rem 0; }
 .loading { font-size: 13px; color: var(--hint); padding: 0.5rem 0; font-family: var(--mono); }
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-textarea#notes { width: 100%; resize: vertical; min-height: 100px; }
-
-.sub-tag { font-size: 10px; font-family: var(--mono); padding: 1px 5px; background: rgba(255,255,255,0.05); color: var(--muted); border-radius: 3px; margin-left: 4px; }
-
-@media (max-width: 720px) {
-  .stats-grid { grid-template-columns: repeat(2,1fr); }
-  .player-row { grid-template-columns: repeat(2,1fr); }
-  .charts-row, .log-grid, .two-col { grid-template-columns: 1fr; }
-}
+textarea#notes { width: 100%; resize: vertical; min-height: 80px; }
 </style>
 </head>
 <body>
 <div class="app">
 
 <div id="setup-screen">
-  <h1>Deadlock Team Tracker & Lab Engine</h1>
-  <p style="color:var(--muted); font-size:13px">Select your tracking identity node:</p>
+  <h1>Deadlock team tracker</h1>
+  <p style="color:var(--muted); font-size:13px">Who are you?</p>
   <div class="player-grid">
     <button class="player-btn" style="border-color:#7F77DD" onclick="selectPlayer('Lantic')">Lantic</button>
     <button class="player-btn" style="border-color:#1D9E75" onclick="selectPlayer('Neel')">Neel</button>
     <button class="player-btn" style="border-color:#D85A30" onclick="selectPlayer('Ollie')">Ollie</button>
     <button class="player-btn" style="border-color:#D4537E" onclick="selectPlayer('Wren')">Wren</button>
   </div>
-  <p id="setup-msg" style="font-size:12px; color:var(--muted); font-family:var(--mono)"></p>
 </div>
 
 <div id="main-screen">
   <header>
-    <h1>Deadlock Intelligence Dashboard</h1>
+    <h1>Deadlock tracker</h1>
     <div class="hdr-right">
       <span class="sync-txt" id="sync-txt"></span>
       <div class="active-pill">
@@ -169,42 +135,32 @@ textarea#notes { width: 100%; resize: vertical; min-height: 100px; }
   </header>
 
   <div class="section">
-    <div class="section-label">Team Overview — All Time Analytics</div>
-    <div class="stats-grid" style="margin-bottom:12px">
-      <div class="stat-card"><div class="lbl">Total Wins</div><div class="val wc" id="s-w">—</div><div class="sub" id="s-w2"></div></div>
-      <div class="stat-card"><div class="lbl">Total Losses</div><div class="val lc" id="s-l">—</div><div class="sub" id="s-l2"></div></div>
-      <div class="stat-card"><div class="lbl">Team Win Rate</div><div class="val ac" id="s-wr">—%</div><div class="sub">across roster</div></div>
-      <div class="stat-card"><div class="lbl">Today's Performance</div><div class="val" id="s-today">—</div><div class="sub" id="s-today2"></div></div>
+    <div class="section-label">Team overview — all time</div>
+    <div class="stats-grid" style="margin-bottom:10px">
+      <div class="stat-card"><div class="lbl">Total wins</div><div class="val wc" id="s-w">—</div><div class="sub" id="s-w2"></div></div>
+      <div class="stat-card"><div class="lbl">Total losses</div><div class="val lc" id="s-l">—</div><div class="sub" id="s-l2"></div></div>
+      <div class="stat-card"><div class="lbl">Team win rate</div><div class="val ac" id="s-wr">—%</div><div class="sub">all players</div></div>
+      <div class="stat-card"><div class="lbl">Today</div><div class="val" id="s-today">—</div><div class="sub" id="s-today2"></div></div>
     </div>
     <div class="player-row" id="player-cards"></div>
   </div>
 
   <div class="section">
-    <div class="section-label">Experimental: Active Hero Synergy & Draft Maps</div>
-    <div class="card">
-      <p style="font-size:12px; color:var(--muted); margin-bottom:10px">Historical team win-rates compiled dynamically when specific heroes are locked into our stack.</p>
-      <div class="synergy-matrix-wrap" id="synergy-output">
-        <p class="empty-state">Log matches with hero designations to generate synergy indexing charts.</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-label">Charts & Visual Trajectories</div>
+    <div class="section-label">Charts</div>
     <div class="charts-row">
       <div class="card chart-box">
-        <div class="clbl">Today — Volume Distribution</div>
+        <div class="clbl">Today — wins vs losses per player</div>
         <div class="legend">
-          <span><span class="ldot" style="background:#3B6D11"></span>Wins</span>
-          <span><span class="ldot" style="background:#A32D2D"></span>Losses</span>
+          <span><span class="ldot" style="background:#97C459"></span>Wins</span>
+          <span><span class="ldot" style="background:#F09595"></span>Losses</span>
         </div>
         <div class="chart-wrap"><canvas id="todayChart" role="img" aria-label="Today's wins and losses per player">No data.</canvas></div>
       </div>
       <div class="card chart-box">
-        <div class="clbl">Cumulative Performance Trajectory</div>
+        <div class="clbl">All sessions — cumulative wins &amp; losses</div>
         <div class="legend">
-          <span><span class="ldot" style="background:#639922"></span>Wins</span>
-          <span><span class="ldot" style="background:#E24B4A"></span>Losses (dashed)</span>
+          <span><span class="ldot" style="background:#97C459"></span>Wins</span>
+          <span><span class="ldot" style="background:#F09595"></span>Losses (dashed)</span>
         </div>
         <div class="chart-wrap"><canvas id="totalChart" role="img" aria-label="Cumulative wins and losses over all sessions">No data.</canvas></div>
       </div>
@@ -212,73 +168,61 @@ textarea#notes { width: 100%; resize: vertical; min-height: 100px; }
   </div>
 
   <div class="section">
-    <div class="section-label">Co-op Matrix — Conditional Stack Metrics</div>
+    <div class="section-label">Head-to-head — win rate when playing together</div>
     <div class="card">
-      <p style="font-size:12px; color:var(--muted); margin-bottom:12px">Row player's historical win rate during cross-cutting sessions where the column player was confirmed active in the party.</p>
-      <div style="overflow-x:auto" id="h2h-wrap"><p class="loading">Loading matrix arrays...</p></div>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:12px">Row player's win rate during sessions where the column player also played (same date + account).</p>
+      <div style="overflow-x:auto" id="h2h-wrap"><p class="loading">Loading…</p></div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-label">Ingest Match Records</div>
-    <div class="card" style="margin-bottom:1rem">
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <input type="text" id="statlocker-url" placeholder="Paste Statlocker match URL (Extracts Heroes, Party, and Pace automatically)..." style="flex:1; min-width:240px" />
-        <button class="btn primary" onclick="importStatlocker()">Automated Profile Ingest</button>
-      </div>
-      <p style="font-size:11px; color:var(--muted); margin-top:8px">Supported format: <code>https://statlocker.gg/profile/[id]/matches/[matchId]/summary</code></p>
-    </div>
-
+    <div class="section-label">Log a match manually</div>
     <div class="card log-grid">
       <div class="log-form">
         <div class="field">
-          <label>Player Node</label>
+          <label>Player</label>
           <select id="log-player">
             <option>Lantic</option><option>Neel</option><option>Ollie</option><option>Wren</option>
           </select>
         </div>
         <div class="field">
-          <label>Account Track</label>
+          <label>Account</label>
           <select id="log-account"><option value="main">Main</option><option value="alt">Alt</option></select>
         </div>
         <div class="field">
-          <label>Result Outcome</label>
+          <label>Result</label>
           <select id="log-result"><option value="win">Win</option><option value="loss">Loss</option></select>
         </div>
         <div class="field">
-          <label>Selected Hero</label>
+          <label>Hero</label>
           <input type="text" id="log-hero" placeholder="e.g. Infernus" />
         </div>
         <div class="field">
-          <label>Date Window</label>
+          <label>Date</label>
           <input type="date" id="log-date" />
         </div>
         <div class="field">
-          <label>Game Pace Profile</label>
-          <select id="log-pace">
-            <option value="Standard">Standard (20-35 mins)</option>
-            <option value="Fast Stomp">Fast Stomp (&lt;20 mins)</option>
-            <option value="Endurance Test">Endurance Test (&gt;35 mins)</option>
-          </select>
+          <label>Match Duration</label>
+          <input type="text" id="log-duration" placeholder="e.g. 24:15" />
         </div>
         <div class="field full">
-          <label>Party Metadata &amp; Internal Performance Notes</label>
-          <input type="text" id="log-note" placeholder="Captured party stack members or tactical review variables..." />
+          <label>Match ID (Optional)</label>
+          <input type="text" id="log-match-id" placeholder="In-game match ID token..." />
         </div>
-        <div class="full">
-          <button class="btn primary" onclick="logMatch()" style="width:100%">Commit Manual Entry</button>
+        <div class="full" style="margin-top: 4px;">
+          <button class="btn primary" onclick="logMatch()" style="width:100%">Log match</button>
         </div>
       </div>
       <div>
-        <div class="section-label" style="margin-bottom:8px">Live Feed Logs</div>
-        <div id="recent-list"><p class="loading">Loading timeline...</p></div>
+        <div class="section-label" style="margin-bottom:8px">Recent Ingestion History</div>
+        <div id="recent-list"><p class="loading">Loading…</p></div>
       </div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-label">Consolidated Historical Timeline (Session Aggregated)</div>
-    <div class="card">
+    <div class="section-label">Match history</div>
+    <div class="card" style="margin-bottom: 1rem">
       <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
         <select id="f-player" onchange="renderHistory()" style="font-size:12px">
           <option value="all">All players</option>
@@ -290,45 +234,32 @@ textarea#notes { width: 100%; resize: vertical; min-height: 100px; }
         <select id="f-result" onchange="renderHistory()" style="font-size:12px">
           <option value="all">All results</option><option value="win">Wins</option><option value="loss">Losses</option>
         </select>
-        <input type="text" id="f-hero" placeholder="Filter Hero..." oninput="renderHistory()" style="font-size:12px; width:110px" />
-        <button class="btn sm" onclick="exportCSV()" style="margin-left:auto">Export Table Data (CSV)</button>
+        <input type="text" id="f-hero" placeholder="Hero…" oninput="renderHistory()" style="font-size:12px; width:110px" />
+        <button class="btn sm" onclick="exportCSV()" style="margin-left:auto">Export CSV</button>
       </div>
       <div style="overflow-x:auto">
         <table class="htable">
-          <thead><tr><th>#</th><th>Timestamp</th><th>Player</th><th>Track</th><th>Result</th><th>Hero Matchup</th><th>Pace</th><th>Log Summary Notes</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Date</th><th>Player</th><th>Account</th><th>Result</th><th>Hero</th><th>Game Pace</th><th></th></tr></thead>
           <tbody id="history-body"></tbody>
         </table>
       </div>
-      <p class="empty-state" id="history-empty" style="display:none">No logged records meet current dashboard filters.</p>
+      <p class="empty-state" id="history-empty" style="display:none">No matches match the filter.</p>
+    </div>
+
+    <div id="context-note-box" class="card" style="display:none">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+        <div class="section-label" id="context-note-lbl" style="margin-bottom:0">Match Notes Editor</div>
+        <button class="btn sm" onclick="saveContextNote()" id="context-note-save-btn">Save Note</button>
+      </div>
+      <textarea id="notes" placeholder="Type specific notes/performance reviews for this match here..."></textarea>
     </div>
   </div>
 
-  <div class="two-col section">
-    <div>
-      <div class="section-label">Team Manifest External Links</div>
-      <div class="card">
-        <div class="links-form">
-          <input type="text" id="link-url" placeholder="https://statlocker.gg/profile/..." style="flex:2; min-width:0" />
-          <input type="text" id="link-tag" placeholder="Label" style="width:80px; flex:none" />
-          <button class="btn primary sm" onclick="addLink()">Inject</button>
-        </div>
-        <div id="link-list"><p class="empty-state">No links linked to database.</p></div>
-      </div>
-    </div>
-    <div>
-      <div class="section-label">Shared Command Scrapbook</div>
-      <div class="card">
-        <textarea id="notes" placeholder="Draft lane groupings, meta dynamic insights, team strategy notes..." oninput="queueNoteSave()"></textarea>
-        <div style="font-size:11px; color:var(--hint); margin-top:6px" id="notes-status">Cloud sync active with Supabase core</div>
-      </div>
-    </div>
-  </div>
 </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// ── LIVE CLOUD BACKEND CONFIGURATION ────────────────────────────────────────
 const SUPABASE_URL = 'https://ezzqccgyhndzfwtzejzw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6enFjY2d5aG5kemZ3dHplanp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMTUxMzcsImV4cCI6MjA5NDY5MTEzN30.GMaX7zVf-NuwlGG17kWwu3Bf_YsXRQgax73gpy_BBUI';
 
@@ -336,46 +267,29 @@ const PLAYERS = ['Lantic','Neel','Ollie','Wren'];
 const COLORS  = { Lantic:'#7F77DD', Neel:'#1D9E75', Ollie:'#D85A30', Wren:'#D4537E' };
 
 let me = localStorage.getItem('dl_me') || null;
-let allMatches = [], allLinks = [];
+let allMatches = [];
 let chartToday = null, chartTotal = null;
-let noteTimer = null;
+let selectedMatchId = null;
 
 function today() { return new Date().toISOString().slice(0,10); }
 
-// ── DATA ACCESS LAYER (REST CORRELATION OVER SUPABASE VIA GITHUB PAGES) ──────
+// ── SUPABASE REST GATEWAY ──────────────────────────────────────────────────
 async function sb(path, opts = {}) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
-    headers: { 
-      apikey: SUPABASE_KEY, 
-      Authorization: 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json', 
-      Prefer: opts.prefer || 'return=representation' 
-    },
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', Prefer: opts.prefer || 'return=representation' },
     ...opts
   });
   if (!r.ok) throw new Error(await r.text());
   if (r.status === 204) return null;
   return r.json();
 }
-
 const getMatches = () => sb('matches?select=*&order=id.asc');
 const postMatch  = m => sb('matches', { method:'POST', body: JSON.stringify(m) });
+const patchMatch = (id, fields) => sb('matches?id=eq.'+id, { method:'PATCH', body: JSON.stringify(fields) });
 const delMatch   = id => sb('matches?id=eq.'+id, { method:'DELETE', prefer:'' });
-const getLinks   = () => sb('links?select=*&order=id.asc');
-const postLink   = l => sb('links', { method:'POST', body: JSON.stringify(l) });
-const delLink    = id => sb('links?id=eq.'+id, { method:'DELETE', prefer:'' });
-const getNotes   = () => sb('notes?select=*&limit=1');
 
-async function putNotes(content) {
-  const rows = await getNotes();
-  if (rows && rows.length) {
-    await sb('notes?id=eq.'+rows[0].id, { method:'PATCH', body: JSON.stringify({ content }) });
-  } else {
-    await sb('notes', { method:'POST', body: JSON.stringify({ content }) });
-  }
-}
-
-// ── INITIALIZATION NODE ─────────────────────────────────────────────────────
+// ── APPLICATION CORE INITIALIZATION ────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   if (me) enterMain();
 });
@@ -393,31 +307,33 @@ async function enterMain() {
   document.getElementById('pdot').style.background = COLORS[me];
   document.getElementById('log-player').value = me;
   document.getElementById('log-date').value = today();
-  sync('Synchronizing state metrics...');
+  sync('Loading…');
   try {
-    const [m, l, n] = await Promise.all([getMatches(), getLinks(), getNotes()]);
+    const m = await getMatches();
     allMatches = m || [];
-    allLinks   = l || [];
-    document.getElementById('notes').value = (n && n.length) ? n[0].content : '';
-    sync('Connected');
+    sync('');
     renderAll();
-  } catch(e) { 
-    sync('Error linking cluster: ' + e.message); 
-  }
+  } catch(e) { sync('Error: '+e.message); }
 }
 
 function sync(s) { document.getElementById('sync-txt').textContent = s; }
 
-// ── RENDERING MATRIX ENGINE ──────────────────────────────────────────────────
+// ── DURATION CALCULATION TIER MAPPING ──────────────────────────────────────
+function getPaceFromDuration(durationStr) {
+  if (!durationStr || !durationStr.includes(':')) return 'Standard';
+  const parts = durationStr.split(':');
+  const minutes = parseInt(parts[0], 10);
+  if (isNaN(minutes)) return 'Standard';
+  
+  if (minutes < 20) return '<20';
+  if (minutes >= 20 && minutes <= 35) return '20-35';
+  return '35+';
+}
+
+// ── VISUAL UI RENDERING MATRICES ───────────────────────────────────────────
 function renderAll() {
-  renderTeam(); 
-  renderCards(); 
-  renderCharts(); 
-  renderSynergy();
-  renderH2H();
-  renderRecent(); 
-  renderHistory(); 
-  renderLinks();
+  renderTeam(); renderCards(); renderCharts(); renderH2H();
+  renderRecent(); renderHistory();
 }
 
 function renderTeam() {
@@ -430,8 +346,8 @@ function renderTeam() {
   document.getElementById('s-w').textContent  = w;
   document.getElementById('s-l').textContent  = l;
   document.getElementById('s-wr').textContent = t ? Math.round(w/t*100)+'%' : '—%';
-  document.getElementById('s-w2').textContent = t+' total tracking loops';
-  document.getElementById('s-l2').textContent = t ? Math.round(l/t*100)+'% failure density' : '';
+  document.getElementById('s-w2').textContent = t+' total games';
+  document.getElementById('s-l2').textContent = t ? Math.round(l/t*100)+'% loss rate' : '';
   document.getElementById('s-today').textContent = td.length;
   document.getElementById('s-today2').textContent = tw+'W / '+tl+'L';
 }
@@ -446,29 +362,17 @@ function renderCards() {
     const ml = pm.filter(x=>x.account==='main'&&x.result==='loss').length;
     const aw = pm.filter(x=>x.account==='alt' &&x.result==='win').length;
     const al = pm.filter(x=>x.account==='alt' &&x.result==='loss').length;
-    
     const sorted = [...pm].sort((a,b)=>b.id-a.id);
-    let streak = 0;
-    if (sorted.length) { 
-      const d = sorted[0].result; 
-      for (const x of sorted) { if(x.result===d) streak++; else break; } 
-      if(d==='loss') streak = -streak; 
-    }
-    
-    let streakHtml = '—';
-    if(streak > 0) {
-      streakHtml = `<span class="streak-flare flare-hot">🔥 W${streak}</span>`;
-    } else if(streak < 0) {
-      streakHtml = `<span class="streak-flare flare-tilt">❄️ L${Math.abs(streak)}</span>`;
-    }
-
+    let streak=0;
+    if (sorted.length) { const d=sorted[0].result; for (const x of sorted){if(x.result===d)streak++;else break;} if(d==='loss')streak=-streak; }
     return `<div class="player-card" style="border-color:${COLORS[p]}">
-      <div class="pname" style="color:${COLORS[p]}">${p} ${streakHtml}</div>
+      <div class="pname" style="color:${COLORS[p]}">${p}</div>
       <div class="pstat">
-        WR Ratio: ${wr!==null?wr+'%':'—'}<br/>
-        Vol: ${pw}W / ${pl}L<br/>
-        Main Profile: ${mw}W - ${ml}L<br/>
-        Alt Profile: ${aw}W - ${al}L
+        WR: ${wr!==null?wr+'%':'—'}<br/>
+        ${pw}W / ${pl}L<br/>
+        main ${mw}W ${ml}L<br/>
+        alt ${aw}W ${al}L<br/>
+        streak: ${streak>0?'+'+streak:streak}
       </div>
     </div>`;
   }).join('');
@@ -496,8 +400,8 @@ function renderCharts() {
   const sorted = [...allMatches].sort((a,b)=>a.id-b.id);
   const byDate = {}; let cw=0,cl=0;
   for (const m of sorted) {
-    if(m.result==='win') cw++; else cl++;
-    byDate[m.date] = {cw,cl};
+    if(m.result==='win')cw++;else cl++;
+    byDate[m.date]={cw,cl};
   }
   const dates = Object.keys(byDate).sort();
 
@@ -513,52 +417,6 @@ function renderCharts() {
       scales:{x:{grid:{display:false},ticks:{color:'#7a7f8e',autoSkip:true,maxTicksLimit:8}},
               y:{beginAtZero:true,ticks:{stepSize:1,color:'#7a7f8e'},grid:{color:'rgba(255,255,255,0.05)'}}}}
   });
-}
-
-function renderSynergy() {
-  const el = document.getElementById('synergy-output');
-  const heroData = {};
-
-  allMatches.forEach(m => {
-    if (!m.hero) return;
-    const normHero = m.hero.trim();
-    if (!heroData[normHero]) {
-      heroData[normHero] = { wins: 0, total: 0, players: {} };
-    }
-    heroData[normHero].total++;
-    if (m.result === 'win') heroData[normHero].wins++;
-
-    if (!heroData[normHero].players[m.player]) {
-      heroData[normHero].players[m.player] = { wins: 0, total: 0 };
-    }
-    heroData[normHero].players[m.player].total++;
-    if (m.result === 'win') heroData[normHero].players[m.player].wins++;
-  });
-
-  const keys = Object.keys(heroData);
-  if (!keys.length) {
-    el.innerHTML = '<p class="empty-state">No hero telemetry parsed yet.</p>';
-    return;
-  }
-
-  el.innerHTML = keys.map(hero => {
-    const data = heroData[hero];
-    const overallWr = Math.round((data.wins / data.total) * 100);
-    
-    let subBreakdowns = '';
-    for (const p of PLAYERS) {
-      if (data.players[p]) {
-        const pWr = Math.round((data.players[p].wins / data.players[p].total) * 100);
-        subBreakdowns += `<div class="line"><span>${p}</span><span>${pWr}% (${data.players[p].total}g)</span></div>`;
-      }
-    }
-
-    return `<div class="synergy-card">
-      <div class="title"><span>${hero}</span><span class="${overallWr >= 50 ? 'wc' : 'lc'}">${overallWr}% WR</span></div>
-      <div class="line" style="color:var(--muted)"><span>Stack Volume:</span><span>${data.total} Matches</span></div>
-      ${subBreakdowns}
-    </div>`;
-  }).join('');
 }
 
 function renderH2H() {
@@ -580,7 +438,7 @@ function renderH2H() {
       h2h[p1+'|'+p2].l += players[p1].l;
     }
   }
-  let html=`<table class="h2h-table"><thead><tr><th style="text-align:left">↓ Stack Intersect</th>`;
+  let html=`<table class="h2h-table"><thead><tr><th style="text-align:left">↓ row / col →</th>`;
   for (const p of PLAYERS) html+=`<th style="color:${COLORS[p]}">${p}</th>`;
   html+='</tr></thead><tbody>';
   for (const p1 of PLAYERS) {
@@ -602,16 +460,15 @@ function renderH2H() {
 function renderRecent() {
   const el=document.getElementById('recent-list');
   const rows=[...allMatches].sort((a,b)=>b.id-a.id).slice(0,6);
-  if(!rows.length){el.innerHTML='<p class="empty-state">No games logged yet.</p>';return;}
+  if(!rows.length){el.innerHTML='<p class="empty-state">No matches logged yet.</p>';return;}
   el.innerHTML=rows.map(m=>`
     <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
       <span class="pill ${m.player}">${m.player}</span>
       <span class="pill ${m.result}">${m.result}</span>
       <span class="pill ${m.account}">${m.account}</span>
-      ${m.hero?`<span style="font-size:12px;font-weight:500;">${m.hero}</span>`:''}
-      ${m.pace?`<span class="sub-tag">${m.pace}</span>`:''}
-      ${m.note?`<span style="font-size:11px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.note}</span>`:'<span style="flex:1"></span>'}
-      <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">${m.date.slice(5)}</span>
+      ${m.hero?`<span style="font-size:12px">${m.hero}</span>`:''}
+      <span style="flex:1"></span>
+      <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">Pace: ${m.note || 'Standard'}</span>
     </div>`).join('');
 }
 
@@ -620,264 +477,137 @@ function renderHistory() {
   const fa=document.getElementById('f-account').value;
   const fr=document.getElementById('f-result').value;
   const fh=(document.getElementById('f-hero').value||'').toLowerCase();
-  
   let rows=[...allMatches].sort((a,b)=>b.id-a.id);
-  if(fp!=='all') rows=rows.filter(x=>x.player===fp);
-  if(fa!=='all') rows=rows.filter(x=>x.account===fa);
-  if(fr!=='all') rows=rows.filter(x=>x.result===fr);
-  if(fh) rows=rows.filter(x=>(x.hero||'').toLowerCase().includes(fh));
-  
+  if(fp!=='all')rows=rows.filter(x=>x.player===fp);
+  if(fa!=='all')rows=rows.filter(x=>x.account===fa);
+  if(fr!=='all')rows=rows.filter(x=>x.result===fr);
+  if(fh)rows=rows.filter(x=>(x.hero||'').toLowerCase().includes(fh));
   const body=document.getElementById('history-body');
   const empty=document.getElementById('history-empty');
   if(!rows.length){body.innerHTML='';empty.style.display='';return;}
   empty.style.display='none';
+  body.innerHTML=rows.map((m,i)=>`
+    <tr id="match-row-${m.id}" class="${selectedMatchId === m.id ? 'selected' : ''}" onclick="selectMatch(${m.id})">
+      <td style="color:var(--hint);font-family:var(--mono)">${rows.length-i}</td>
+      <td style="font-family:var(--mono);font-size:12px">${m.date.slice(5)}</td>
+      <td><span class="pill ${m.player}">${m.player}</span></td>
+      <td><span class="pill ${m.account}">${m.account}</span></td>
+      <td><span class="pill ${m.result}">${m.result}</span></td>
+      <td style="font-size:12px">${m.hero||'<span style="color:var(--hint)">—</span>'}</td>
+      <td style="color:var(--muted);font-family:var(--mono);font-size:12px">${m.note||'Standard'}</td>
+      <td><button class="btn danger" onclick="removeMatch(event, ${m.id})">✕</button></td>
+    </tr>`).join('');
+}
 
-  let htmlBuffer = '';
-  let lastSessionKey = '';
+// ── MATCH CONTEXT ROW CLICK MANAGER ──────────────────────────────────────
+function selectMatch(id) {
+  selectedMatchId = id;
+  const target = allMatches.find(x => x.id === id);
+  
+  document.querySelectorAll('#history-body tr').forEach(r => r.classList.remove('selected'));
+  const rowEl = document.getElementById(`match-row-${id}`);
+  if (rowEl) rowEl.classList.add('selected');
+  
+  const container = document.getElementById('context-note-box');
+  const textarea = document.getElementById('notes');
+  const label = document.getElementById('context-note-lbl');
+  
+  label.textContent = `Reviewing Match #${target.match_id || target.id} (${target.player} on ${target.hero || 'Hero'})`;
+  // We use the custom match comments data field inside the existing match entry text array map
+  textarea.value = target.match_notes || ''; 
+  container.style.display = 'block';
+}
 
-  rows.forEach((m, i) => {
-    // Sessionization logic: Cluster items grouped closely together on the same day window
-    const currentSessionKey = m.date;
-    if (currentSessionKey !== lastSessionKey) {
-      const dayMatches = rows.filter(x => x.date === m.date);
-      const dayWins = dayMatches.filter(x => x.result === 'win').length;
-      const dayLosses = dayMatches.filter(x => x.result === 'loss').length;
-      htmlBuffer += `<tr><td colspan="9" class="session-header">
-        <span>📅 SESSION NODE: ${m.date}</span>
-        <span>Run Summary: ${dayWins}W — ${dayLosses}L</span>
-      </td></tr>`;
-      lastSessionKey = currentSessionKey;
+async function saveContextNote() {
+  if (!selectedMatchId) return;
+  const textVal = document.getElementById('notes').value.trim();
+  const btn = document.getElementById('context-note-save-btn');
+  
+  btn.textContent = 'Saving...';
+  sync('Updating custom match notes...');
+  
+  try {
+    // Save to custom note column 'match_notes'
+    await patchMatch(selectedMatchId, { match_notes: textVal });
+    
+    const matchIdx = allMatches.findIndex(x => x.id === selectedMatchId);
+    if (matchIdx !== -1) {
+      allMatches[matchIdx].match_notes = textVal;
     }
-
-    htmlBuffer += `
-      <tr>
-        <td style="color:var(--hint);font-family:var(--mono)">${rows.length-i}</td>
-        <td style="font-family:var(--mono);font-size:12px">${m.date.slice(5)}</td>
-        <td><span class="pill ${m.player}">${m.player}</span></td>
-        <td><span class="pill ${m.account}">${m.account}</span></td>
-        <td><span class="pill ${m.result}">${m.result}</span></td>
-        <td style="font-size:12px; font-weight:500">${m.hero||'<span style="color:var(--hint)">—</span>'}</td>
-        <td><span class="sub-tag">${m.pace || 'Standard'}</span></td>
-        <td style="color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${m.note||''}">
-          ${m.note||''}
-        </td>
-        <td><button class="btn danger" onclick="removeMatch(${m.id})">✕</button></td>
-      </tr>`;
-  });
-
-  body.innerHTML = htmlBuffer;
+    
+    sync('Notes successfully saved');
+    btn.textContent = 'Saved!';
+    setTimeout(() => { btn.textContent = 'Save Note'; }, 1500);
+  } catch (e) {
+    sync('Error saving note: ' + e.message);
+    btn.textContent = 'Error';
+  }
 }
 
-function renderLinks() {
-  const el=document.getElementById('link-list');
-  if(!allLinks.length){el.innerHTML='<p class="empty-state">No endpoints stored.</p>';return;}
-  el.innerHTML=allLinks.map(l=>`
-    <div class="link-item">
-      <div style="display:flex;align-items:center;gap:8px;overflow:hidden;flex:1">
-        <a href="${l.url}" target="_blank" rel="noopener">${l.url.length>44?l.url.slice(0,41)+'…':l.url}</a>
-        ${l.tag?`<span class="link-tag">${l.tag}</span>`:''}
-        ${l.added_by?`<span style="font-size:11px;color:var(--hint)">${l.added_by}</span>`:''}
-      </div>
-      <button class="btn danger" onclick="removeLink(${l.id})">✕</button>
-    </div>`).join('');
-}
-
-// ── CORE INTERFACE MUTATIONS ────────────────────────────────────────────────
+// ── WRITE MANUAL ENTRY CONTROLLER ──────────────────────────────────────────
 async function logMatch() {
-  sync('Committing match data...');
+  sync('Committing manual match data...');
+  
+  const durationVal = document.getElementById('log-duration').value.trim();
+  const calculatedPace = getPaceFromDuration(durationVal);
+
+  // We write exclusively into existing base columns (note, player, account, result, hero, date, match_id)
   const record = {
     player: document.getElementById('log-player').value,
     account: document.getElementById('log-account').value,
     result: document.getElementById('log-result').value,
     hero: document.getElementById('log-hero').value.trim(),
     date: document.getElementById('log-date').value || today(),
-    note: document.getElementById('log-note').value.trim(),
-    pace: document.getElementById('log-pace').value
+    note: calculatedPace, // Timestamps (<20, 20-35, 35+) go straight to the verified text 'note' column
+    match_id: document.getElementById('log-match-id').value.trim() || null
   };
+
   try {
     const r = await postMatch(record);
     allMatches.push(r[0]);
+
+    // Clear inputs
     document.getElementById('log-hero').value = '';
-    document.getElementById('log-note').value = '';
+    document.getElementById('log-duration').value = '';
+    document.getElementById('log-match-id').value = '';
+    
     sync('Record verified');
     renderAll();
   } catch(e) { 
     sync('Commit Error'); 
-    alert('Failed to execute append operations over Supabase: '+e.message); 
+    alert('Failed to execute append operations over Supabase: ' + e.message); 
   }
 }
 
-async function removeMatch(id) {
-  if(!confirm('Purge match entry from cloud archive?')) return;
-  sync('Purging entry...');
+async function removeMatch(event, id) {
+  if (event) event.stopPropagation();
+  if (!confirm('Are you sure you want to drop this match entry?')) return;
+  sync('Dropping match...');
   try {
     await delMatch(id);
     allMatches = allMatches.filter(x=>x.id!==id);
-    sync('Purge completed');
-    renderAll();
-  } catch(e) { sync('Purge failed'); }
-}
-
-async function addLink() {
-  const url = document.getElementById('link-url').value.trim();
-  const tag = document.getElementById('link-tag').value.trim();
-  if(!url) return;
-  sync('Injecting layout url...');
-  try {
-    const r = await postLink({ url, tag, added_by: me });
-    allLinks.push(r[0]);
-    document.getElementById('link-url').value = '';
-    document.getElementById('link-tag').value = '';
-    sync('Link processed');
-    renderAll();
-  } catch(e) { sync('Link append failed'); }
-}
-
-async function removeLink(id) {
-  sync('Dropping link network...');
-  try {
-    await delLink(id);
-    allLinks = allLinks.filter(x=>x.id!==id);
-    sync('Link deleted');
-    renderAll();
-  } catch(e) { sync('Link teardown failed'); }
-}
-
-function queueNoteSave() {
-  document.getElementById('notes-status').textContent = 'Typing detected... queuing update';
-  clearTimeout(noteTimer);
-  noteTimer = setTimeout(async () => {
-    document.getElementById('notes-status').textContent = 'Pushing payload to Supabase schema...';
-    try {
-      await putNotes(document.getElementById('notes').value);
-      document.getElementById('notes-status').textContent = 'Cloud state mirrors local environment';
-    } catch(e) { 
-      document.getElementById('notes-status').textContent = 'Sync error: ' + e.message; 
+    if (selectedMatchId === id) {
+      selectedMatchId = null;
+      document.getElementById('context-note-box').style.display = 'none';
     }
-  }, 1000);
+    sync('Drop confirmed');
+    renderAll();
+  } catch(e) { sync('Drop failed: '+e.message); }
 }
 
 function exportCSV() {
-  let csv = 'ID,Date,Player,Account,Result,Hero,Pace,Notes\n';
-  allMatches.forEach((m, index) => {
-    csv += `"${index+1}","${m.date}","${m.player}","${m.account}","${m.result}","${m.hero || ''}","${m.pace || 'Standard'}","${(m.note || '').replace(/"/g, '""')}"\n`;
-  });
+  if (!allMatches.length) return alert('No logged instances available.');
+  let csv = 'ID,Date,Player,Account,Result,Hero,PaceGroup,Notes\n';
+  for (const m of allMatches) {
+    csv += `"${m.match_id||m.id}","${m.date}","${m.player}","${m.account}","${m.result}","${m.hero||''}","${m.note||'Standard'}","${(m.match_notes||'').replace(/"/g, '""')}"\n`;
+  }
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.setAttribute('download', `deadlock_tracker_export_${today()}.csv`);
+  link.setAttribute('download', `deadlock_team_track_${today()}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-}
-
-// ── ROBUST SCRAPER & PARSING INTERCEPTOR FOR STATLOCKER ENDPOINTS ───────────
-async function importStatlocker() {
-  const urlVal = document.getElementById('statlocker-url').value.trim();
-  if (!urlVal) return alert('Input valid Statlocker target path string.');
-  
-  sync('Fetching Statlocker payload...');
-  
-  try {
-    const matchIdMatch = urlVal.match(/matches\/(\d+)/);
-    const profileIdMatch = urlVal.match(/profile\/(\d+)/);
-    const matchId = matchIdMatch ? matchIdMatch[1] : '';
-    const profileId = profileIdMatch ? profileIdMatch[1] : '';
-
-    const corsProxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(urlVal);
-    const res = await fetch(corsProxyUrl);
-    if (!res.ok) throw new Error('Proxy validation failure.');
-    
-    const wrapData = await res.json();
-    const html = wrapData.contents;
-
-    // Accounts / Identity lookup tables
-    const accountMap = {
-      '1123931349': { name: 'Lantic', account: 'main' },
-      '456789123':  { name: 'Neel',   account: 'main' },
-      '789123456':  { name: 'Ollie',  account: 'main' },
-      '321654987':  { name: 'Wren',   account: 'main' }
-    };
-
-    let detectedPlayer = me;
-    let detectedAccount = 'main';
-
-    if (profileId && accountMap[profileId]) {
-      detectedPlayer = accountMap[profileId].name;
-      detectedAccount = accountMap[profileId].account;
-    }
-
-    // Parse Outbound Result states
-    let result = 'win';
-    if (html.toLowerCase().includes('defeat') || html.toLowerCase().includes('loss')) {
-      result = 'loss';
-    }
-
-    const heroList = [
-      'Abrams', 'Bebop', 'Dynamo', 'Grey Goode', 'Haze', 'Infernus', 'Ivy',
-      'Kelvin', 'Lady Geist', 'Lash', 'McGinnis', 'Mo & Krill', 'Mo and Krill', 
-      'Paradox', 'Pocket', 'Seven', 'Shiv', 'Vindicta', 'Viscous',
-      'Warden', 'Wraith', 'Yamato', 'Mirage'
-    ];
-
-    let hero = '';
-    for (const h of heroList) {
-      if (html.includes(h)) {
-        hero = h;
-        break;
-      }
-    }
-
-    // Auto-detect game length/duration and map metrics to specific pace classifications
-    let duration = '';
-    let pace = 'Standard';
-    const durationMatch = html.match(/(\d{1,2}):(\d{2})/);
-    if (durationMatch) {
-      duration = durationMatch[0];
-      const minutes = parseInt(durationMatch[1], 10);
-      if (minutes < 20) pace = 'Fast Stomp';
-      else if (minutes > 35) pace = 'Endurance Test';
-    }
-
-    // Experimental Layer: Cross-reference stack presence inside scraped response
-    const teammates = [];
-    for (const [id, profile] of Object.entries(accountMap)) {
-      if (html.includes(id) && profile.name !== detectedPlayer) {
-        teammates.push(profile.name);
-      }
-    }
-    const uniqueTeammates = [...new Set(teammates)];
-
-    let note = 'Statlocker Pipeline Ingest';
-    if (duration) note += ` • ${duration}`;
-    if (uniqueTeammates.length) {
-      note += ` • Stack: ${uniqueTeammates.join(', ')}`;
-    } else {
-      note += ' • Solo Queue';
-    }
-
-    const record = {
-      player: detectedPlayer,
-      account: detectedAccount,
-      result,
-      hero,
-      date: today(),
-      note,
-      pace
-    };
-
-    const r = await postMatch(record);
-    allMatches.push(r[0]);
-
-    document.getElementById('statlocker-url').value = '';
-    sync(`Successfully cataloged: ${hero || 'Match'}`);
-    renderAll();
-
-  } catch (e) {
-    console.error(e);
-    sync('Ingest failed');
-    alert('Statlocker automated ingestion error: ' + e.message);
-  }
 }
 </script>
 </body>
