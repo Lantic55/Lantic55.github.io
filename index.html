@@ -117,6 +117,8 @@ header h1 { font-size: 17px; font-weight: 500; }
 .comparison-table .player-cell { text-align: left; font-weight: 500; }
 .comparison-view { display: none; }
 .comparison-view.active { display: table; }
+.breakdown-view { display: none; margin-bottom: 18px; }
+.breakdown-view.active { display: block; }
 .match-stats-loading { font-size: 12px; color: var(--hint); font-family: var(--mono); margin-top: 8px; }
 
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
@@ -1116,20 +1118,21 @@ renderHistory = function() {
       const detailHealingRows = detailRows.filter(row => row.healing > 0).map(row => `
         <tr><td><span class="legend-player"><span class="legend-dot" style="background:${detailColor(row.name)}"></span><span style="color:${detailColor(row.name)}">${row.name}</span></span></td><td>${fmtDetail(row.healing)}</td></tr>
       `).join('');
+      const breakdownToggle = active => `<div class="detail-toggle breakdown-toggle"><button class="${active === 'damage' ? 'active' : ''}" type="button" data-tab="damage" onclick="setBreakdownTab('${rowId}','damage')">Damage</button><button class="${active === 'support' ? 'active' : ''}" type="button" data-tab="support" onclick="setBreakdownTab('${rowId}','support')">Support</button></div>`;
       const richDamageBreakdown = detailDamageTotal ? `
-        <div class="detail-card">
-          <div class="detail-card-head"><div class="detail-card-title">Damage breakdown</div><div class="detail-toggle"><button class="active" type="button">Total</button><button type="button">Per Min</button></div></div>
+        <div class="detail-card breakdown-view active" data-tab="damage">
+          <div class="detail-card-head"><div class="detail-card-title">Damage breakdown</div>${breakdownToggle('damage')}</div>
           <div class="breakdown-body">
             <div class="donut-wrap">${detailDonut(Object.keys(detailDmgTotals).map(key => ({ value: detailDmgTotals[key], color: detailDmgColors[key] })))}</div>
             <table class="breakdown-table"><thead><tr><th>Player</th><th>Player<br>Damage</th><th>Trooper<br>Damage</th><th>Neutral Enemy<br>Damage</th><th>Total</th></tr></thead><tbody>${detailDamageRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailDmgTotals.player_damage)}</td><td>${fmtTotal(detailDmgTotals.creep_damage)}</td><td>${fmtTotal(detailDmgTotals.boss_damage)}</td><td>${fmtTotal(detailDamageTotal)}</td></tr></tbody></table>
           </div>
         </div>` : '';
       const richHealingBreakdown = detailHealingTotal ? `
-        <div class="detail-card">
-          <div class="detail-card-head"><div class="detail-card-title">Healing breakdown</div><div class="detail-toggle"><button class="active" type="button">Total</button><button type="button">Per Min</button></div></div>
+        <div class="detail-card breakdown-view ${detailDamageTotal ? '' : 'active'}" data-tab="support">
+          <div class="detail-card-head"><div class="detail-card-title">Support breakdown</div>${breakdownToggle('support')}</div>
           <div class="breakdown-body">
             <div class="donut-wrap">${detailDonut(detailRows.map(row => ({ value: row.healing, color: detailColor(row.name) })))}</div>
-            <table class="breakdown-table"><thead><tr><th>Player</th><th>Total Healing</th></tr></thead><tbody>${detailHealingRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailHealingTotal)}</td></tr></tbody></table>
+            <table class="breakdown-table"><thead><tr><th>Player</th><th>Healing</th></tr></thead><tbody>${detailHealingRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailHealingTotal)}</td></tr></tbody></table>
           </div>
         </div>` : '';
       const comparisonRows = detailRows.map(row => {
@@ -1152,7 +1155,7 @@ renderHistory = function() {
       statsHtml = `
         <div class="match-meta"><span class="match-meta-label">Match stats</span>${durationBadge}</div>
         ${chips ? `<div class="match-stat-row">${chips}</div>` : ''}
-        <div class="detail-grid">${richDamageBreakdown}${richHealingBreakdown}</div>
+        <div>${richDamageBreakdown}${richHealingBreakdown}</div>
         <div class="detail-card comparison-card">
           <div class="detail-card-head"><div class="detail-card-title">Player comparison</div><div class="detail-toggle comparison-toggle"><button class="active" type="button" data-tab="combat" onclick="setComparisonTab('${rowId}','combat')">Combat</button><button type="button" data-tab="farm" onclick="setComparisonTab('${rowId}','farm')">Farm</button><button type="button" data-tab="economy" onclick="setComparisonTab('${rowId}','economy')">Economy</button><button type="button" data-tab="support" onclick="setComparisonTab('${rowId}','support')">Support</button></div></div>
           <table class="comparison-table comparison-view active" data-tab="combat"><thead><tr><th>Player</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>Player Dmg</th><th>Healing</th></tr></thead><tbody>${comparisonRows}</tbody></table>
@@ -1193,6 +1196,17 @@ function toggleMatchDetail(id) {
   document.getElementById(id)?.classList.toggle('open');
 }
 
+function setBreakdownTab(rowId, tab) {
+  const panel = document.getElementById(rowId);
+  if (!panel) return;
+  panel.querySelectorAll('.breakdown-toggle button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  panel.querySelectorAll('.breakdown-view').forEach(view => {
+    view.classList.toggle('active', view.dataset.tab === tab);
+  });
+}
+
 function setComparisonTab(rowId, tab) {
   const panel = document.getElementById(rowId);
   if (!panel) return;
@@ -1203,6 +1217,9 @@ function setComparisonTab(rowId, tab) {
     view.classList.toggle('active', view.dataset.tab === tab);
   });
 }
+
+window.setBreakdownTab = setBreakdownTab;
+window.setComparisonTab = setComparisonTab;
 
 async function saveMatchNotes(matchId, account, inputId) {
   const value = document.getElementById(inputId)?.value || '';
