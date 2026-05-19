@@ -86,16 +86,21 @@ header h1 { font-size: 17px; font-weight: 500; }
 .match-stat-chip .msc-name { font-size: 11px; }
 .match-stat-chip .msc-val  { font-size: 12px; font-family: var(--mono); }
 .k { color: #97C459; } .d { color: #F09595; } .a { color: #85B7EB; }
-.dmg-wheels-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; }
-.dmg-wheel-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; display: flex; align-items: center; gap: 10px; flex: 1; min-width: 190px; max-width: 260px; }
-.dmg-wheel-svg { flex-shrink: 0; }
-.dmg-wheel-info { flex: 1; min-width: 0; }
-.dmg-wheel-name { font-size: 12px; font-weight: 500; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dmg-legend { display: flex; flex-direction: column; gap: 3px; }
-.dmg-legend-row { display: flex; align-items: center; gap: 5px; font-size: 11px; }
-.dmg-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.dmg-legend-label { color: var(--muted); flex: 1; }
-.dmg-legend-val { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.dmg-breakdown { margin: 10px 0 4px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); }
+.dmg-breakdown-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.dmg-breakdown-title { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.dmg-key { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; font-size: 10px; color: var(--muted); }
+.dmg-key-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.dmg-key-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.dmg-list { display: flex; flex-direction: column; gap: 8px; }
+.dmg-row { display: grid; grid-template-columns: 72px minmax(150px,1fr) 196px; gap: 10px; align-items: center; }
+.dmg-player { min-width: 0; font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dmg-total { display: block; margin-top: 1px; font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--muted); }
+.dmg-bar { display: flex; height: 14px; overflow: hidden; border-radius: 4px; background: rgba(255,255,255,0.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); }
+.dmg-segment { min-width: 2px; }
+.dmg-values { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.dmg-value { display: flex; align-items: center; justify-content: flex-end; gap: 4px; white-space: nowrap; }
+.dmg-value-dot { width: 6px; height: 6px; border-radius: 2px; flex-shrink: 0; }
 .match-stats-loading { font-size: 12px; color: var(--hint); font-family: var(--mono); margin-top: 8px; }
 
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
@@ -156,6 +161,10 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
   .stats-grid { grid-template-columns: repeat(2,1fr); }
   .player-row { grid-template-columns: repeat(2,1fr); }
   .charts-row, .log-grid, .two-col { grid-template-columns: 1fr; }
+  .dmg-breakdown-head { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .dmg-row { grid-template-columns: 1fr; gap: 5px; }
+  .dmg-values { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .dmg-value { justify-content: flex-start; }
 }
 </style>
 </head>
@@ -992,64 +1001,49 @@ renderHistory = function() {
         boss_damage:   '#B87DD4',   // purple — neutral/boss
       };
       const DMG_LABELS = {
-        player_damage: 'vs Players',
-        creep_damage:  'vs Troopers',
-        boss_damage:   'vs Neutrals',
+        player_damage: 'Players',
+        creep_damage:  'Troopers',
+        boss_damage:   'Neutrals',
       };
 
-      function buildDonut(slices, size = 54, stroke = 10) {
-        const r = (size - stroke) / 2;
-        const cx = size / 2, cy = size / 2;
-        const circumference = 2 * Math.PI * r;
-        const total = slices.reduce((s, sl) => s + sl.value, 0);
-        if (!total) return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${stroke}"/></svg>`;
-        let offset = 0;
-        // Start from top (rotate -90deg)
-        const arcs = slices.map(sl => {
-          const frac = sl.value / total;
-          const dash = frac * circumference;
-          const gap = circumference - dash;
-          const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${sl.color}" stroke-width="${stroke}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${(-offset * circumference / total).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
-          offset += sl.value;
-          return arc;
-        });
-        return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="dmg-wheel-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${stroke}"/>${arcs.join('')}</svg>`;
-      }
-
-      const wheels = playerNames.map(name => {
+      const fmtDmg = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : (v > 0 ? String(v) : '0');
+      const damageRows = playerNames.map(name => {
         const p = cached.players[name];
         const pd = p.player_damage || 0;
         const cd = p.creep_damage  || 0;
         const bd = p.boss_damage   || 0;
         if (!pd && !cd && !bd) return '';
-        const slices = [
-          { value: pd, color: DMG_COLORS.player_damage },
-          { value: cd, color: DMG_COLORS.creep_damage  },
-          { value: bd, color: DMG_COLORS.boss_damage   },
-        ];
-        const donut = buildDonut(slices);
         const total = pd + cd + bd;
-        const fmt = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : (v > 0 ? String(v) : null);
-        const legendRows = [
-          { key: 'player_damage', v: pd },
-          { key: 'creep_damage',  v: cd },
-          { key: 'boss_damage',   v: bd },
-        ].filter(x => x.v > 0).map(x => `
-          <div class="dmg-legend-row">
-            <span class="dmg-legend-dot" style="background:${DMG_COLORS[x.key]}"></span>
-            <span class="dmg-legend-label">${DMG_LABELS[x.key]}</span>
-            <span class="dmg-legend-val">${fmt(x.v)}</span>
-          </div>`).join('');
-        return `<div class="dmg-wheel-card">
-          ${donut}
-          <div class="dmg-wheel-info">
-            <div class="dmg-wheel-name" style="color:${COLORS[name]||'var(--text)'}">${name} <span style="font-size:10px;color:var(--muted);font-weight:400">${fmt(total)} total</span></div>
-            <div class="dmg-legend">${legendRows}</div>
-          </div>
+        const parts = [
+          { key: 'player_damage', value: pd },
+          { key: 'creep_damage',  value: cd },
+          { key: 'boss_damage',   value: bd },
+        ];
+        const segments = parts.filter(x => x.value > 0).map(x =>
+          `<span class="dmg-segment" title="${DMG_LABELS[x.key]} ${fmtDmg(x.value)}" style="width:${Math.max(2, (x.value / total) * 100).toFixed(1)}%;background:${DMG_COLORS[x.key]}"></span>`
+        ).join('');
+        const values = parts.map(x => `
+          <span class="dmg-value"><span class="dmg-value-dot" style="background:${DMG_COLORS[x.key]}"></span>${fmtDmg(x.value)}</span>
+        `).join('');
+        return `<div class="dmg-row">
+          <div class="dmg-player" style="color:${COLORS[name]||'var(--text)'}">${name}<span class="dmg-total">${fmtDmg(total)} total</span></div>
+          <div class="dmg-bar" aria-label="${name} damage breakdown">${segments}</div>
+          <div class="dmg-values">${values}</div>
         </div>`;
       }).filter(Boolean).join('');
 
-      const hasDmgData = wheels.length > 0;
+      const dmgKey = Object.keys(DMG_LABELS).map(key => `
+        <span class="dmg-key-item"><span class="dmg-key-dot" style="background:${DMG_COLORS[key]}"></span>${DMG_LABELS[key]}</span>
+      `).join('');
+
+      const damageBreakdown = damageRows ? `
+        <div class="dmg-breakdown">
+          <div class="dmg-breakdown-head">
+            <div class="dmg-breakdown-title">Damage breakdown</div>
+            <div class="dmg-key">${dmgKey}</div>
+          </div>
+          <div class="dmg-list">${damageRows}</div>
+        </div>` : '';
 
       statsHtml = `
         <div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px">
@@ -1057,9 +1051,7 @@ renderHistory = function() {
           ${durationBadge}
         </div>
         ${chips ? `<div class="match-stat-row">${chips}</div>` : ''}
-        ${hasDmgData ? `
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px">Damage breakdown</div>
-          <div class="dmg-wheels-row">${wheels}</div>` : ''}`;
+        ${damageBreakdown}`;
     } else if (s.matchId) {
       statsHtml = `<p class="match-stats-loading">Fetch this match via Auto Fetch to see detailed stats &amp; damage breakdown.</p>`;
     }
