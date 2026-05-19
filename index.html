@@ -97,8 +97,9 @@ header h1 { font-size: 17px; font-weight: 500; }
 .detail-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
 .detail-card-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text); }
 .detail-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface2); }
-.detail-toggle span { padding: 5px 12px; font-size: 12px; color: var(--muted); border-left: 1px solid var(--border); }
-.detail-toggle span:first-child { border-left: 0; }
+.detail-toggle button { padding: 5px 12px; font-size: 12px; color: var(--muted); border: 0; border-left: 1px solid var(--border); background: transparent; font-family: var(--font); cursor: pointer; }
+.detail-toggle button:first-child { border-left: 0; }
+.detail-toggle button:hover { color: var(--text); }
 .detail-toggle .active { color: #fff; background: var(--accent-d); }
 .breakdown-body { display: grid; grid-template-columns: 210px minmax(0,1fr); gap: 22px; align-items: center; }
 .donut-wrap { display: flex; justify-content: center; }
@@ -114,6 +115,8 @@ header h1 { font-size: 17px; font-weight: 500; }
 .comparison-card { margin-bottom: 6px; }
 .comparison-table th, .comparison-table td { text-align: center; }
 .comparison-table .player-cell { text-align: left; font-weight: 500; }
+.comparison-view { display: none; }
+.comparison-view.active { display: table; }
 .match-stats-loading { font-size: 12px; color: var(--hint); font-family: var(--mono); margin-top: 8px; }
 
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
@@ -1024,8 +1027,8 @@ renderHistory = function() {
       };
       const DMG_LABELS = {
         player_damage: 'Players',
-        creep_damage:  'Troopers',
-        boss_damage:   'Neutrals',
+        creep_damage:  'Trooper',
+        boss_damage:   'Neutral Enemy',
       };
 
       const fmtDmg = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : (v > 0 ? String(v) : '0');
@@ -1115,15 +1118,15 @@ renderHistory = function() {
       `).join('');
       const richDamageBreakdown = detailDamageTotal ? `
         <div class="detail-card">
-          <div class="detail-card-head"><div class="detail-card-title">Damage breakdown</div><div class="detail-toggle"><span class="active">Total</span><span>Per Min</span></div></div>
+          <div class="detail-card-head"><div class="detail-card-title">Damage breakdown</div><div class="detail-toggle"><button class="active" type="button">Total</button><button type="button">Per Min</button></div></div>
           <div class="breakdown-body">
             <div class="donut-wrap">${detailDonut(Object.keys(detailDmgTotals).map(key => ({ value: detailDmgTotals[key], color: detailDmgColors[key] })))}</div>
-            <table class="breakdown-table"><thead><tr><th>Player</th><th>Player<br>Damage</th><th>Creep<br>Damage</th><th>Boss<br>Damage</th><th>Total</th></tr></thead><tbody>${detailDamageRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailDmgTotals.player_damage)}</td><td>${fmtTotal(detailDmgTotals.creep_damage)}</td><td>${fmtTotal(detailDmgTotals.boss_damage)}</td><td>${fmtTotal(detailDamageTotal)}</td></tr></tbody></table>
+            <table class="breakdown-table"><thead><tr><th>Player</th><th>Player<br>Damage</th><th>Trooper<br>Damage</th><th>Neutral Enemy<br>Damage</th><th>Total</th></tr></thead><tbody>${detailDamageRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailDmgTotals.player_damage)}</td><td>${fmtTotal(detailDmgTotals.creep_damage)}</td><td>${fmtTotal(detailDmgTotals.boss_damage)}</td><td>${fmtTotal(detailDamageTotal)}</td></tr></tbody></table>
           </div>
         </div>` : '';
       const richHealingBreakdown = detailHealingTotal ? `
         <div class="detail-card">
-          <div class="detail-card-head"><div class="detail-card-title">Healing breakdown</div><div class="detail-toggle"><span class="active">Total</span><span>Per Min</span></div></div>
+          <div class="detail-card-head"><div class="detail-card-title">Healing breakdown</div><div class="detail-toggle"><button class="active" type="button">Total</button><button type="button">Per Min</button></div></div>
           <div class="breakdown-body">
             <div class="donut-wrap">${detailDonut(detailRows.map(row => ({ value: row.healing, color: detailColor(row.name) })))}</div>
             <table class="breakdown-table"><thead><tr><th>Player</th><th>Total Healing</th></tr></thead><tbody>${detailHealingRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailHealingTotal)}</td></tr></tbody></table>
@@ -1131,7 +1134,19 @@ renderHistory = function() {
         </div>` : '';
       const comparisonRows = detailRows.map(row => {
         const p = row.p;
-        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${p.kills ?? 0}</td><td>${p.deaths ?? 0}</td><td>${p.assists ?? 0}</td><td>${fmtDetail(p.player_damage || 0)}</td><td>${fmtDetail(p.creep_damage || 0)}</td><td>${fmtDetail(p.boss_damage || 0)}</td><td>${fmtDetail(p.healing || 0)}</td><td>${fmtDetail(p.net_worth || 0)}</td><td>${p.last_hits ?? 0}</td><td>${p.denies ?? 0}</td></tr>`;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${p.kills ?? 0}</td><td>${p.deaths ?? 0}</td><td>${p.assists ?? 0}</td><td>${fmtDetail(p.player_damage || 0)}</td><td>${fmtDetail(p.healing || 0)}</td></tr>`;
+      }).join('');
+      const farmRows = detailRows.map(row => {
+        const p = row.p;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${fmtDetail(p.creep_damage || 0)}</td><td>${fmtDetail(p.boss_damage || 0)}</td><td>${p.last_hits ?? 0}</td><td>${p.denies ?? 0}</td></tr>`;
+      }).join('');
+      const economyRows = detailRows.map(row => {
+        const p = row.p;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${fmtDetail(p.net_worth || 0)}</td><td>${p.last_hits ?? 0}</td><td>${p.denies ?? 0}</td></tr>`;
+      }).join('');
+      const supportRows = detailRows.map(row => {
+        const p = row.p;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${p.assists ?? 0}</td><td>${fmtDetail(p.healing || 0)}</td><td>${fmtDetail(p.player_damage || 0)}</td></tr>`;
       }).join('');
 
       statsHtml = `
@@ -1139,8 +1154,11 @@ renderHistory = function() {
         ${chips ? `<div class="match-stat-row">${chips}</div>` : ''}
         <div class="detail-grid">${richDamageBreakdown}${richHealingBreakdown}</div>
         <div class="detail-card comparison-card">
-          <div class="detail-card-head"><div class="detail-card-title">Player comparison</div><div class="detail-toggle"><span class="active">Combat</span><span>Farm</span><span>Economy</span><span>Support</span></div></div>
-          <table class="comparison-table"><thead><tr><th>Player</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>Player Dmg</th><th>Creep Dmg</th><th>Boss Dmg</th><th>Healing</th><th>Net Worth</th><th>LH</th><th>Denies</th></tr></thead><tbody>${comparisonRows}</tbody></table>
+          <div class="detail-card-head"><div class="detail-card-title">Player comparison</div><div class="detail-toggle comparison-toggle"><button class="active" type="button" data-tab="combat" onclick="setComparisonTab('${rowId}','combat')">Combat</button><button type="button" data-tab="farm" onclick="setComparisonTab('${rowId}','farm')">Farm</button><button type="button" data-tab="economy" onclick="setComparisonTab('${rowId}','economy')">Economy</button><button type="button" data-tab="support" onclick="setComparisonTab('${rowId}','support')">Support</button></div></div>
+          <table class="comparison-table comparison-view active" data-tab="combat"><thead><tr><th>Player</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>Player Dmg</th><th>Healing</th></tr></thead><tbody>${comparisonRows}</tbody></table>
+          <table class="comparison-table comparison-view" data-tab="farm"><thead><tr><th>Player</th><th>Trooper Dmg</th><th>Neutral Enemy Dmg</th><th>LH</th><th>Denies</th></tr></thead><tbody>${farmRows}</tbody></table>
+          <table class="comparison-table comparison-view" data-tab="economy"><thead><tr><th>Player</th><th>Net Worth</th><th>LH</th><th>Denies</th></tr></thead><tbody>${economyRows}</tbody></table>
+          <table class="comparison-table comparison-view" data-tab="support"><thead><tr><th>Player</th><th>Assists</th><th>Healing</th><th>Player Dmg</th></tr></thead><tbody>${supportRows}</tbody></table>
         </div>`;
     } else if (s.matchId) {
       statsHtml = `<p class="match-stats-loading">Fetch this match via Auto Fetch to see detailed stats &amp; damage breakdown.</p>`;
@@ -1173,6 +1191,17 @@ renderHistory = function() {
 
 function toggleMatchDetail(id) {
   document.getElementById(id)?.classList.toggle('open');
+}
+
+function setComparisonTab(rowId, tab) {
+  const panel = document.getElementById(rowId);
+  if (!panel) return;
+  panel.querySelectorAll('.comparison-toggle button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  panel.querySelectorAll('.comparison-view').forEach(view => {
+    view.classList.toggle('active', view.dataset.tab === tab);
+  });
 }
 
 async function saveMatchNotes(matchId, account, inputId) {
@@ -1390,6 +1419,10 @@ async function importMatchViaId() {
 			break;
 		  }
 
+		  if (Array.isArray(current) && !/^\d+$/.test(key)) {
+			current = current[current.length - 1];
+		  }
+
 		  current = current[key];
 		}
 
@@ -1437,27 +1470,37 @@ async function importMatchViaId() {
 		"player_stats.denies"
 	  ],
 
-	  // keep healing as-is since it seems correct now
 	  healing: [
+		"stats.player_healing",
+		"stats.teammate_healing",
 		"player_stats.hero_healing",
-		"hero_healing"
+		"player_stats.player_healing",
+		"hero_healing",
+		"player_healing"
 	  ],
 
-	  // THIS is likely the broken one
 	  player_damage: [
+		"stats.player_damage",
 		"player_stats.hero_damage",
+		"player_stats.player_damage",
 		"hero_damage",
 		"player_damage"
 	  ],
 
 	  creep_damage: [
+		"stats.creep_damage",
 		"player_stats.creep_damage",
 		"creep_damage",
-		"trooper_damage"
+		"trooper_damage",
+		"lane_creep_damage"
 	  ],
 
 	  boss_damage: [
+		"stats.neutral_damage",
+		"stats.boss_damage",
 		"player_stats.boss_damage",
+		"player_stats.neutral_damage",
+		"neutral_damage",
 		"boss_damage",
 		"objective_damage"
 	  ]
