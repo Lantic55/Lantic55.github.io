@@ -1294,30 +1294,111 @@ async function importMatchViaId() {
 
     // ── Cache detailed stats for the damage wheel and stat chips ──
     // Valve's protobuf uses snake_case. We try many aliases since field names can vary by API version.
-    const STAT_ALIASES = {
-      kills:         ['kills', 'player_kills', 'num_kills'],
-      deaths:        ['deaths', 'player_deaths', 'num_deaths'],
-      assists:       ['assists', 'player_assists', 'num_assists'],
-      net_worth:     ['net_worth', 'netWorth', 'gold_earned', 'total_gold'],
-      last_hits:     ['last_hits', 'lastHits', 'cs', 'creep_kills'],
-      denies:        ['denies', 'deny_count', 'denies_count'],
-      healing:       ['hero_healing', 'healing_dealt', 'total_healing', 'player_healing'],
-      // Damage split — the three categories we care about
-      player_damage: ['player_damage', 'hero_damage', 'damage_dealt_to_heroes', 'player_damage_dealt_to_heroes', 'total_damage_dealt_to_heroes'],
-      creep_damage:  ['creep_damage', 'trooper_damage', 'damage_dealt_to_npcs', 'minion_damage', 'lane_creep_damage', 'damage_dealt_to_creeps'],
-      boss_damage:   ['boss_damage', 'neutral_damage', 'damage_dealt_to_neutrals', 'objective_damage', 'damage_dealt_to_objectives', 'jungle_damage'],
-    };
-    const detailCache = {};
-    for (const pData of playersInMatch) {
-      const squadMember = resolveSquadMember(pData);
-      if (!squadMember) continue;
-      const stats = {};
-      for (const [statKey, aliases] of Object.entries(STAT_ALIASES)) {
-        const val = findValueDeep(pData, aliases);
-        if (val !== null && val !== undefined) stats[statKey] = Number(val);
-      }
-      detailCache[squadMember.name] = stats;
-    }
+    // safer exact-path stat reader
+	function getNestedStat(obj, paths = []) {
+	  for (const path of paths) {
+		const keys = path.split(".");
+		let current = obj;
+
+		for (const key of keys) {
+		  if (!current || typeof current !== "object") {
+			current = null;
+			break;
+		  }
+
+		  current = current[key];
+		}
+
+		if (current !== undefined && current !== null) {
+		  const num = Number(current);
+
+		  if (!Number.isNaN(num)) {
+			return num;
+		  }
+		}
+	  }
+
+	  return null;
+	}
+
+	// exact scoreboard paths
+	const STAT_PATHS = {
+	  kills: [
+		"kills",
+		"player_stats.kills"
+	  ],
+
+	  deaths: [
+		"deaths",
+		"player_stats.deaths"
+	  ],
+
+	  assists: [
+		"assists",
+		"player_stats.assists"
+	  ],
+
+	  net_worth: [
+		"net_worth",
+		"player_stats.net_worth"
+	  ],
+
+	  last_hits: [
+		"last_hits",
+		"player_stats.last_hits"
+	  ],
+
+	  denies: [
+		"denies",
+		"player_stats.denies"
+	  ],
+
+	  // keep healing as-is since it seems correct now
+	  healing: [
+		"player_stats.hero_healing",
+		"hero_healing"
+	  ],
+
+	  // THIS is likely the broken one
+	  player_damage: [
+		"player_stats.hero_damage",
+		"hero_damage",
+		"player_damage"
+	  ],
+
+	  creep_damage: [
+		"player_stats.creep_damage",
+		"creep_damage",
+		"trooper_damage"
+	  ],
+
+	  boss_damage: [
+		"player_stats.boss_damage",
+		"boss_damage",
+		"objective_damage"
+	  ]
+	};
+
+	// rebuild detail cache
+	const detailCache = {};
+
+	for (const pData of playersInMatch) {
+	  const squadMember = resolveSquadMember(pData);
+
+	  if (!squadMember) continue;
+
+	  const stats = {};
+
+	  for (const [statKey, paths] of Object.entries(STAT_PATHS)) {
+		const value = getNestedStat(pData, paths);
+
+		if (value !== null) {
+		  stats[statKey] = value;
+		}
+	  }
+
+	  detailCache[squadMember.name] = stats;
+	}
     if (matchId && Object.keys(detailCache).length) {
       matchDetailCache[String(matchId)] = { players: detailCache, duration, durationStr };
     }
