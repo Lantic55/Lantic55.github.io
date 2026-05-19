@@ -86,17 +86,54 @@ header h1 { font-size: 17px; font-weight: 500; }
 .match-stat-chip .msc-name { font-size: 11px; }
 .match-stat-chip .msc-val  { font-size: 12px; font-family: var(--mono); }
 .k { color: #97C459; } .d { color: #F09595; } .a { color: #85B7EB; }
-.dmg-wheels-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; }
-.dmg-wheel-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; display: flex; align-items: center; gap: 10px; flex: 1; min-width: 190px; max-width: 260px; }
-.dmg-wheel-svg { flex-shrink: 0; }
-.dmg-wheel-info { flex: 1; min-width: 0; }
-.dmg-wheel-name { font-size: 12px; font-weight: 500; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dmg-legend { display: flex; flex-direction: column; gap: 3px; }
-.dmg-legend-row { display: flex; align-items: center; gap: 5px; font-size: 11px; }
-.dmg-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.dmg-legend-label { color: var(--muted); flex: 1; }
-.dmg-legend-val { font-family: var(--mono); font-size: 11px; color: var(--text); }
-.match-stats-loading { font-size: 12px; color: var(--hint); font-family: var(--mono); margin-top: 8px; }
+.breakdown-card {
+  margin-top: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.breakdown-title {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.breakdown-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.breakdown-table th {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.breakdown-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.breakdown-table tr:last-child td {
+  border-bottom: none;
+}
+
+.match-stats-loading {
+  font-size: 12px;
+  color: var(--hint);
+  font-family: var(--mono);
+  margin-top: 8px;
+}
 
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .log-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -985,84 +1022,127 @@ renderHistory = function() {
         healRows   ? `<div class="match-stat-chip"><div class="msc-label">Healing</div><div class="msc-rows">${healRows}</div></div>` : '',
       ].filter(Boolean).join('');
 
-      // ── Damage donut wheels ──
-      const DMG_COLORS = {
-        player_damage: '#E2664A',   // red-orange — hero damage
-        creep_damage:  '#5BA3D9',   // blue — trooper/lane
-        boss_damage:   '#B87DD4',   // purple — neutral/boss
-      };
-      const DMG_LABELS = {
-        player_damage: 'vs Players',
-        creep_damage:  'vs Troopers',
-        boss_damage:   'vs Neutrals',
-      };
+      function fmtStat(v) {
+  if (!v) return '0';
+  return v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v);
+}
 
-      function buildDonut(slices, size = 54, stroke = 10) {
-        const r = (size - stroke) / 2;
-        const cx = size / 2, cy = size / 2;
-        const circumference = 2 * Math.PI * r;
-        const total = slices.reduce((s, sl) => s + sl.value, 0);
-        if (!total) return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${stroke}"/></svg>`;
-        let offset = 0;
-        // Start from top (rotate -90deg)
-        const arcs = slices.map(sl => {
-          const frac = sl.value / total;
-          const dash = frac * circumference;
-          const gap = circumference - dash;
-          const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${sl.color}" stroke-width="${stroke}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${(-offset * circumference / total).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
-          offset += sl.value;
-          return arc;
-        });
-        return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="dmg-wheel-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${stroke}"/>${arcs.join('')}</svg>`;
-      }
+const damageRows = playerNames.map(name => {
+  const p = cached.players[name];
 
-      const wheels = playerNames.map(name => {
-        const p = cached.players[name];
-        const pd = p.player_damage || 0;
-        const cd = p.creep_damage  || 0;
-        const bd = p.boss_damage   || 0;
-        if (!pd && !cd && !bd) return '';
-        const slices = [
-          { value: pd, color: DMG_COLORS.player_damage },
-          { value: cd, color: DMG_COLORS.creep_damage  },
-          { value: bd, color: DMG_COLORS.boss_damage   },
-        ];
-        const donut = buildDonut(slices);
-        const total = pd + cd + bd;
-        const fmt = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : (v > 0 ? String(v) : null);
-        const legendRows = [
-          { key: 'player_damage', v: pd },
-          { key: 'creep_damage',  v: cd },
-          { key: 'boss_damage',   v: bd },
-        ].filter(x => x.v > 0).map(x => `
-          <div class="dmg-legend-row">
-            <span class="dmg-legend-dot" style="background:${DMG_COLORS[x.key]}"></span>
-            <span class="dmg-legend-label">${DMG_LABELS[x.key]}</span>
-            <span class="dmg-legend-val">${fmt(x.v)}</span>
-          </div>`).join('');
-        return `<div class="dmg-wheel-card">
-          ${donut}
-          <div class="dmg-wheel-info">
-            <div class="dmg-wheel-name" style="color:${COLORS[name]||'var(--text)'}">${name} <span style="font-size:10px;color:var(--muted);font-weight:400">${fmt(total)} total</span></div>
-            <div class="dmg-legend">${legendRows}</div>
-          </div>
-        </div>`;
-      }).filter(Boolean).join('');
+  const pd = p.player_damage || 0;
+  const cd = p.creep_damage || 0;
+  const bd = p.boss_damage || 0;
 
-      const hasDmgData = wheels.length > 0;
+  const total = pd + cd + bd;
 
-      statsHtml = `
-        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px">
-          <span style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">Match stats</span>
-          ${durationBadge}
-        </div>
-        ${chips ? `<div class="match-stat-row">${chips}</div>` : ''}
-        ${hasDmgData ? `
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px">Damage breakdown</div>
-          <div class="dmg-wheels-row">${wheels}</div>` : ''}`;
-    } else if (s.matchId) {
-      statsHtml = `<p class="match-stats-loading">Fetch this match via Auto Fetch to see detailed stats &amp; damage breakdown.</p>`;
-    }
+  return `
+    <tr>
+      <td>
+        <span style="
+          color:${COLORS[name] || 'var(--text)'};
+          font-weight:600;
+        ">
+          ${name}
+        </span>
+      </td>
+
+      <td>${fmtStat(pd)}</td>
+      <td>${fmtStat(cd)}</td>
+      <td>${fmtStat(bd)}</td>
+      <td style="font-weight:600">${fmtStat(total)}</td>
+    </tr>
+  `;
+}).join('');
+
+const healingTableRows = playerNames
+  .filter(name => (cached.players[name].healing || 0) > 0)
+  .map(name => {
+    const healing = cached.players[name].healing || 0;
+
+    return `
+      <tr>
+        <td>
+          <span style="
+            color:${COLORS[name] || 'var(--text)'};
+            font-weight:600;
+          ">
+            ${name}
+          </span>
+        </td>
+
+        <td style="font-weight:600">
+          ${fmtStat(healing)}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+const hasDamageData = damageRows.length > 0;
+const hasHealingData = healingTableRows.length > 0;
+
+statsHtml = `
+  <div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px">
+    <span style="
+      font-size:10px;
+      font-weight:500;
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      color:var(--muted)
+    ">
+      Match stats
+    </span>
+
+    ${durationBadge}
+  </div>
+
+  ${chips ? `<div class="match-stat-row">${chips}</div>` : ''}
+
+  ${hasDamageData ? `
+    <div class="breakdown-card">
+      <div class="breakdown-title">
+        DAMAGE BREAKDOWN
+      </div>
+
+      <table class="breakdown-table">
+        <thead>
+          <tr>
+            <th>PLAYER</th>
+            <th>PLAYER DMG</th>
+            <th>CREEP</th>
+            <th>BOSS</th>
+            <th>TOTAL</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${damageRows}
+        </tbody>
+      </table>
+    </div>
+  ` : ''}
+
+  ${hasHealingData ? `
+    <div class="breakdown-card" style="margin-top:12px">
+      <div class="breakdown-title">
+        HEALING BREAKDOWN
+      </div>
+
+      <table class="breakdown-table">
+        <thead>
+          <tr>
+            <th>PLAYER</th>
+            <th>HEALING</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${healingTableRows}
+        </tbody>
+      </table>
+    </div>
+  ` : ''}
+`;
 
     return `
       <tr class="match-main" onclick="toggleMatchDetail('${rowId}')">
