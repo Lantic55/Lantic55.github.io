@@ -1102,7 +1102,6 @@ renderHistory = function() {
         return `<svg class="donut-svg" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${stroke}"/>${arcs}<circle cx="${cx}" cy="${cy}" r="${Math.max(24, r - stroke / 2 + 4)}" fill="var(--bg)"/></svg>`;
       }
 
-      const detailDmgColors = { player_damage: '#55C993', creep_damage: '#E05286', boss_damage: '#FF7A2E' };
       const detailDmgTotals = {
         player_damage: detailRows.reduce((sum, row) => sum + (row.p.player_damage || 0), 0),
         creep_damage: detailRows.reduce((sum, row) => sum + (row.p.creep_damage || 0), 0),
@@ -1123,7 +1122,7 @@ renderHistory = function() {
         <div class="detail-card breakdown-view active" data-tab="damage">
           <div class="detail-card-head"><div class="detail-card-title">Damage breakdown</div>${breakdownToggle('damage')}</div>
           <div class="breakdown-body">
-            <div class="donut-wrap">${detailDonut(Object.keys(detailDmgTotals).map(key => ({ value: detailDmgTotals[key], color: detailDmgColors[key] })))}</div>
+            <div class="donut-wrap">${detailDonut(detailRows.map(row => ({ value: row.damage, color: detailColor(row.name) })))}</div>
             <table class="breakdown-table"><thead><tr><th>Player</th><th>Player<br>Damage</th><th>Trooper<br>Damage</th><th>Neutral Enemy<br>Damage</th><th>Total</th></tr></thead><tbody>${detailDamageRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailDmgTotals.player_damage)}</td><td>${fmtTotal(detailDmgTotals.creep_damage)}</td><td>${fmtTotal(detailDmgTotals.boss_damage)}</td><td>${fmtTotal(detailDamageTotal)}</td></tr></tbody></table>
           </div>
         </div>` : '';
