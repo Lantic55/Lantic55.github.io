@@ -79,28 +79,41 @@ header h1 { font-size: 17px; font-weight: 500; }
 .note-line { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; min-width: 280px; }
 
 /* Match detail stats */
-.match-stat-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }
-.match-stat-chip { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 6px 10px; min-width: 130px; flex: 1; }
-.match-stat-chip .msc-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
-.match-stat-chip .msc-row { display: flex; justify-content: space-between; align-items: center; padding: 1px 0; }
-.match-stat-chip .msc-name { font-size: 11px; }
-.match-stat-chip .msc-val  { font-size: 12px; font-family: var(--mono); }
+.match-detail td { padding: 10px 8px 14px; }
+.match-detail-panel { padding: 8px 0 0; }
+.match-detail-top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 14px; }
+.match-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.match-meta-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.duration-badge { font-size: 11px; color: var(--muted); font-family: var(--mono); background: var(--surface2); padding: 3px 9px; border-radius: 5px; }
+.match-stat-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-bottom: 18px; }
+.match-stat-chip { background: linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01)); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; min-height: 130px; }
+.match-stat-chip .msc-label { font-size: 12px; color: #a2a8ba; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 12px; }
+.match-stat-chip .msc-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; }
+.match-stat-chip .msc-name { font-size: 13px; }
+.match-stat-chip .msc-val  { font-size: 15px; font-family: var(--mono); color: var(--text); }
 .k { color: #97C459; } .d { color: #F09595; } .a { color: #85B7EB; }
-.dmg-breakdown { margin: 10px 0 4px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); }
-.dmg-breakdown-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
-.dmg-breakdown-title { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-.dmg-key { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; font-size: 10px; color: var(--muted); }
-.dmg-key-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.dmg-key-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.dmg-list { display: flex; flex-direction: column; gap: 8px; }
-.dmg-row { display: grid; grid-template-columns: 72px minmax(150px,1fr) 196px; gap: 10px; align-items: center; }
-.dmg-player { min-width: 0; font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dmg-total { display: block; margin-top: 1px; font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--muted); }
-.dmg-bar { display: flex; height: 14px; overflow: hidden; border-radius: 4px; background: rgba(255,255,255,0.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); }
-.dmg-segment { min-width: 2px; }
-.dmg-values { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
-.dmg-value { display: flex; align-items: center; justify-content: flex-end; gap: 4px; white-space: nowrap; }
-.dmg-value-dot { width: 6px; height: 6px; border-radius: 2px; flex-shrink: 0; }
+.detail-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; margin-bottom: 18px; }
+.detail-card { background: linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01)); border: 1px solid var(--border); border-radius: var(--r); padding: 16px; }
+.detail-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+.detail-card-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text); }
+.detail-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface2); }
+.detail-toggle span { padding: 5px 12px; font-size: 12px; color: var(--muted); border-left: 1px solid var(--border); }
+.detail-toggle span:first-child { border-left: 0; }
+.detail-toggle .active { color: #fff; background: var(--accent-d); }
+.breakdown-body { display: grid; grid-template-columns: 210px minmax(0,1fr); gap: 22px; align-items: center; }
+.donut-wrap { display: flex; justify-content: center; }
+.donut-svg { width: 180px; height: 180px; flex: 0 0 auto; }
+.breakdown-table, .comparison-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.breakdown-table th, .breakdown-table td, .comparison-table th, .comparison-table td { border-bottom: 1px solid var(--border); padding: 8px 10px; text-align: right; font-family: var(--mono); }
+.breakdown-table th, .comparison-table th { color: #9ca4b8; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+.breakdown-table th:first-child, .breakdown-table td:first-child, .comparison-table th:first-child, .comparison-table td:first-child { text-align: left; font-family: var(--font); }
+.breakdown-table tr:last-child td, .comparison-table tr:last-child td { border-bottom: none; }
+.legend-player { display: inline-flex; align-items: center; gap: 8px; min-width: 90px; }
+.legend-dot { width: 11px; height: 11px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.04); }
+.total-row td { color: var(--text); padding-top: 12px; }
+.comparison-card { margin-bottom: 6px; }
+.comparison-table th, .comparison-table td { text-align: center; }
+.comparison-table .player-cell { text-align: left; font-weight: 500; }
 .match-stats-loading { font-size: 12px; color: var(--hint); font-family: var(--mono); margin-top: 8px; }
 
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
@@ -161,10 +174,9 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
   .stats-grid { grid-template-columns: repeat(2,1fr); }
   .player-row { grid-template-columns: repeat(2,1fr); }
   .charts-row, .log-grid, .two-col { grid-template-columns: 1fr; }
-  .dmg-breakdown-head { align-items: flex-start; flex-direction: column; gap: 6px; }
-  .dmg-row { grid-template-columns: 1fr; gap: 5px; }
-  .dmg-values { grid-template-columns: repeat(3,minmax(0,1fr)); }
-  .dmg-value { justify-content: flex-start; }
+  .match-stat-row, .detail-grid, .breakdown-body { grid-template-columns: 1fr; }
+  .breakdown-table, .comparison-table { min-width: 620px; }
+  .detail-card { overflow-x: auto; }
 }
 </style>
 </head>
@@ -478,7 +490,8 @@ const PLAYER_ID_KEYS = [
   'playerAccountId'
 ];
 const HERO_ID_KEYS = ['hero_id', 'heroId', 'character_id', 'characterId'];
-const TEAM_KEYS = ['team', 'team_id', 'teamId', 'player_team', 'playerTeam'];
+const TEAM_KEYS = ['team', 'team_id', 'teamId', 'team_number', 'teamNumber', 'player_team', 'playerTeam', 'player_team_id', 'playerTeamId'];
+const RESULT_KEYS = ['result', 'match_result', 'matchResult', 'won', 'is_winner', 'isWinner', 'winner', 'victory'];
 
 function findValueDeep(obj, keyNames) {
   if (!obj || typeof obj !== 'object') return null;
@@ -524,9 +537,20 @@ function getHeroId(playerData) {
   return Number.isFinite(n) ? n : null;
 }
 
+function normalizeTeamValue(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const raw = String(value).trim().toLowerCase();
+  if (!raw) return null;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) return numeric;
+  if (raw.includes('amber') || raw.includes('orange') || raw.includes('team0')) return 0;
+  if (raw.includes('sapphire') || raw.includes('blue') || raw.includes('team1')) return 1;
+  return null;
+}
+
 function getTeamId(playerData) {
-  const teamId = findValueDeep(playerData, TEAM_KEYS);
-  return teamId === null ? null : Number(teamId);
+  return normalizeTeamValue(findValueDeep(playerData, TEAM_KEYS));
 }
 
 function collectPlayerArrayCandidates(obj, candidates = []) {
@@ -984,14 +1008,12 @@ renderHistory = function() {
         return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span><span class="msc-val">${label}</span></div>`;
       }).join('');
 
-      const durationBadge = cached.durationStr
-        ? `<span style="font-size:11px;color:var(--muted);font-family:var(--mono);background:var(--surface2);padding:2px 8px;border-radius:4px">${cached.durationStr}</span>` : '';
+      const durationBadge = cached.durationStr ? `<span class="duration-badge">${cached.durationStr}</span>` : '';
 
       const chips = [
         kdaRows    ? `<div class="match-stat-chip"><div class="msc-label">K / D / A</div><div class="msc-rows">${kdaRows}</div></div>` : '',
         nwRows     ? `<div class="match-stat-chip"><div class="msc-label">Net Worth</div><div class="msc-rows">${nwRows}</div></div>` : '',
         csRows     ? `<div class="match-stat-chip"><div class="msc-label">LH / Denies</div><div class="msc-rows">${csRows}</div></div>` : '',
-        healRows   ? `<div class="match-stat-chip"><div class="msc-label">Healing</div><div class="msc-rows">${healRows}</div></div>` : '',
       ].filter(Boolean).join('');
 
       // ── Damage donut wheels ──
@@ -1045,13 +1067,81 @@ renderHistory = function() {
           <div class="dmg-list">${damageRows}</div>
         </div>` : '';
 
+      const fmtDetail = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : (v > 0 ? String(v) : '0');
+      const fmtTotal = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : String(v || 0);
+      const detailColor = name => COLORS[name] || 'var(--text)';
+      const detailRows = playerNames.map(name => {
+        const p = cached.players[name];
+        return {
+          name,
+          p,
+          damage: (p.player_damage || 0) + (p.creep_damage || 0) + (p.boss_damage || 0),
+          healing: p.healing || 0,
+        };
+      });
+
+      function detailDonut(parts, size = 180, stroke = 46) {
+        const r = (size - stroke) / 2;
+        const cx = size / 2, cy = size / 2;
+        const total = parts.reduce((sum, part) => sum + part.value, 0);
+        if (!total) return `<svg class="donut-svg" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${stroke}"/></svg>`;
+        const circumference = 2 * Math.PI * r;
+        let offset = 0;
+        const arcs = parts.filter(part => part.value > 0).map(part => {
+          const dash = part.value / total * circumference;
+          const gap = circumference - dash;
+          const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${part.color}" stroke-width="${stroke}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+          offset += dash;
+          return arc;
+        }).join('');
+        return `<svg class="donut-svg" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${stroke}"/>${arcs}<circle cx="${cx}" cy="${cy}" r="${Math.max(24, r - stroke / 2 + 4)}" fill="var(--bg)"/></svg>`;
+      }
+
+      const detailDmgColors = { player_damage: '#55C993', creep_damage: '#E05286', boss_damage: '#FF7A2E' };
+      const detailDmgTotals = {
+        player_damage: detailRows.reduce((sum, row) => sum + (row.p.player_damage || 0), 0),
+        creep_damage: detailRows.reduce((sum, row) => sum + (row.p.creep_damage || 0), 0),
+        boss_damage: detailRows.reduce((sum, row) => sum + (row.p.boss_damage || 0), 0),
+      };
+      const detailDamageTotal = detailDmgTotals.player_damage + detailDmgTotals.creep_damage + detailDmgTotals.boss_damage;
+      const detailHealingTotal = detailRows.reduce((sum, row) => sum + row.healing, 0);
+      const detailDamageRows = detailRows.filter(row => row.damage > 0).map(row => `
+        <tr>
+          <td><span class="legend-player"><span class="legend-dot" style="background:${detailColor(row.name)}"></span><span style="color:${detailColor(row.name)}">${row.name}</span></span></td>
+          <td>${fmtDetail(row.p.player_damage || 0)}</td><td>${fmtDetail(row.p.creep_damage || 0)}</td><td>${fmtDetail(row.p.boss_damage || 0)}</td><td>${fmtDetail(row.damage)}</td>
+        </tr>`).join('');
+      const detailHealingRows = detailRows.filter(row => row.healing > 0).map(row => `
+        <tr><td><span class="legend-player"><span class="legend-dot" style="background:${detailColor(row.name)}"></span><span style="color:${detailColor(row.name)}">${row.name}</span></span></td><td>${fmtDetail(row.healing)}</td></tr>
+      `).join('');
+      const richDamageBreakdown = detailDamageTotal ? `
+        <div class="detail-card">
+          <div class="detail-card-head"><div class="detail-card-title">Damage breakdown</div><div class="detail-toggle"><span class="active">Total</span><span>Per Min</span></div></div>
+          <div class="breakdown-body">
+            <div class="donut-wrap">${detailDonut(Object.keys(detailDmgTotals).map(key => ({ value: detailDmgTotals[key], color: detailDmgColors[key] })))}</div>
+            <table class="breakdown-table"><thead><tr><th>Player</th><th>Player<br>Damage</th><th>Creep<br>Damage</th><th>Boss<br>Damage</th><th>Total</th></tr></thead><tbody>${detailDamageRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailDmgTotals.player_damage)}</td><td>${fmtTotal(detailDmgTotals.creep_damage)}</td><td>${fmtTotal(detailDmgTotals.boss_damage)}</td><td>${fmtTotal(detailDamageTotal)}</td></tr></tbody></table>
+          </div>
+        </div>` : '';
+      const richHealingBreakdown = detailHealingTotal ? `
+        <div class="detail-card">
+          <div class="detail-card-head"><div class="detail-card-title">Healing breakdown</div><div class="detail-toggle"><span class="active">Total</span><span>Per Min</span></div></div>
+          <div class="breakdown-body">
+            <div class="donut-wrap">${detailDonut(detailRows.map(row => ({ value: row.healing, color: detailColor(row.name) })))}</div>
+            <table class="breakdown-table"><thead><tr><th>Player</th><th>Total Healing</th></tr></thead><tbody>${detailHealingRows}<tr class="total-row"><td>Total</td><td>${fmtTotal(detailHealingTotal)}</td></tr></tbody></table>
+          </div>
+        </div>` : '';
+      const comparisonRows = detailRows.map(row => {
+        const p = row.p;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${p.kills ?? 0}</td><td>${p.deaths ?? 0}</td><td>${p.assists ?? 0}</td><td>${fmtDetail(p.player_damage || 0)}</td><td>${fmtDetail(p.creep_damage || 0)}</td><td>${fmtDetail(p.boss_damage || 0)}</td><td>${fmtDetail(p.healing || 0)}</td><td>${fmtDetail(p.net_worth || 0)}</td><td>${p.last_hits ?? 0}</td><td>${p.denies ?? 0}</td></tr>`;
+      }).join('');
+
       statsHtml = `
-        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px">
-          <span style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">Match stats</span>
-          ${durationBadge}
-        </div>
+        <div class="match-meta"><span class="match-meta-label">Match stats</span>${durationBadge}</div>
         ${chips ? `<div class="match-stat-row">${chips}</div>` : ''}
-        ${damageBreakdown}`;
+        <div class="detail-grid">${richDamageBreakdown}${richHealingBreakdown}</div>
+        <div class="detail-card comparison-card">
+          <div class="detail-card-head"><div class="detail-card-title">Player comparison</div><div class="detail-toggle"><span class="active">Combat</span><span>Farm</span><span>Economy</span><span>Support</span></div></div>
+          <table class="comparison-table"><thead><tr><th>Player</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>Player Dmg</th><th>Creep Dmg</th><th>Boss Dmg</th><th>Healing</th><th>Net Worth</th><th>LH</th><th>Denies</th></tr></thead><tbody>${comparisonRows}</tbody></table>
+        </div>`;
     } else if (s.matchId) {
       statsHtml = `<p class="match-stats-loading">Fetch this match via Auto Fetch to see detailed stats &amp; damage breakdown.</p>`;
     }
@@ -1068,11 +1158,13 @@ renderHistory = function() {
       </tr>
       <tr class="match-detail" id="${rowId}">
         <td colspan="7">
-          <div class="hero-strip">${heroes}</div>
-          ${statsHtml}
-          <div class="note-line">
-            <input type="text" id="${rowId}-note" value="${escapeHtml(s.matchNotes || '')}" placeholder="Match notes..." onclick="event.stopPropagation()" />
-            <button class="btn sm primary" onclick="saveMatchNotes('${safeMatch}','${s.account}','${rowId}-note')">Save note</button>
+          <div class="match-detail-panel">
+            <div class="match-detail-top">${heroes}</div>
+            ${statsHtml}
+            <div class="note-line">
+              <input type="text" id="${rowId}-note" value="${escapeHtml(s.matchNotes || '')}" placeholder="Match notes..." onclick="event.stopPropagation()" />
+              <button class="btn sm primary" onclick="saveMatchNotes('${safeMatch}','${s.account}','${rowId}-note')">Save note</button>
+            </div>
           </div>
         </td>
       </tr>`;
@@ -1401,7 +1493,22 @@ async function importMatchViaId() {
       matchFormattedDate = new Date(Number(startTimeRaw) * 1000).toISOString().slice(0, 10);
     }
 
-    const matchWinner = findKeyDeep(payload, 'match_winner') || findKeyDeep(payload, 'winning_team');
+    const rawMatchWinner = findKeyDeep(payload, 'match_winner') ?? findKeyDeep(payload, 'winning_team') ?? findKeyDeep(payload, 'winner_team') ?? findKeyDeep(payload, 'winningTeam');
+    const matchWinner = normalizeTeamValue(rawMatchWinner);
+
+    function resultFromPlayerData(pData) {
+      const value = findValueDeep(pData, RESULT_KEYS);
+      if (value === undefined || value === null || value === '') return null;
+      if (typeof value === 'boolean') return value ? 'win' : 'loss';
+      if (typeof value === 'number') {
+        if (value === 1) return 'win';
+        if (value === 0 || value === 2) return 'loss';
+      }
+      const text = String(value).trim().toLowerCase();
+      if (['win','won','victory','true','1','winner'].includes(text) || text.includes('victory')) return 'win';
+      if (['loss','lost','defeat','false','0','2','loser'].includes(text) || text.includes('defeat')) return 'loss';
+      return null;
+    }
     
     let previewRecords = [];
     let discoveredNames = [];
@@ -1428,6 +1535,7 @@ async function importMatchViaId() {
       ? matchedPlayers
       : matchedPlayers.filter(player => String(player.team) === String(squadTeam));
     if (playersToImport.length < 4) warnings.push(`Preview contains ${playersToImport.length}/4 expected team rows.`);
+    const winningTeamCandidates = matchWinner === 0 ? [0, 2] : matchWinner === 1 ? [1, 3] : matchWinner === 2 ? [2, 0] : matchWinner === 3 ? [3, 1] : [];
 
     for (const { pData, squadMember, team: playerTeam } of playersToImport) {
       if (discoveredNames.includes(squadMember.name)) continue;
@@ -1437,11 +1545,13 @@ async function importMatchViaId() {
       const heroId = getHeroId(pData);
       const heroName = HERO_IDS[heroId] || `Unknown (${heroId})`;
 
-      let playerResult = "win"; // Fallback default
+      let playerResult = resultFromPlayerData(pData);
       if (matchWinner !== null && playerTeam !== null) {
-        playerResult = (Number(playerTeam) === Number(matchWinner)) ? "win" : "loss";
-      } else if (pData.result !== undefined) {
-        playerResult = String(pData.result).toLowerCase().includes('win') ? "win" : "loss";
+        playerResult = winningTeamCandidates.includes(Number(playerTeam)) ? "win" : "loss";
+      }
+      if (!playerResult) {
+        playerResult = "loss";
+        warnings.push(`Could not resolve win/loss for ${squadMember.name}; defaulted to loss. Check this match before import.`);
       }
 
       const record = {
