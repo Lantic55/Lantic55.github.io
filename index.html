@@ -78,6 +78,26 @@ header h1 { font-size: 17px; font-weight: 500; }
 .hero-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .note-line { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; min-width: 280px; }
 
+/* Match detail stats */
+.match-stat-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }
+.match-stat-chip { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 6px 10px; min-width: 130px; flex: 1; }
+.match-stat-chip .msc-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.match-stat-chip .msc-row { display: flex; justify-content: space-between; align-items: center; padding: 1px 0; }
+.match-stat-chip .msc-name { font-size: 11px; }
+.match-stat-chip .msc-val  { font-size: 12px; font-family: var(--mono); }
+.k { color: #97C459; } .d { color: #F09595; } .a { color: #85B7EB; }
+.dmg-wheels-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; }
+.dmg-wheel-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; display: flex; align-items: center; gap: 10px; flex: 1; min-width: 190px; max-width: 260px; }
+.dmg-wheel-svg { flex-shrink: 0; }
+.dmg-wheel-info { flex: 1; min-width: 0; }
+.dmg-wheel-name { font-size: 12px; font-weight: 500; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dmg-legend { display: flex; flex-direction: column; gap: 3px; }
+.dmg-legend-row { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+.dmg-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.dmg-legend-label { color: var(--muted); flex: 1; }
+.dmg-legend-val { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.match-stats-loading { font-size: 12px; color: var(--hint); font-family: var(--mono); margin-top: 8px; }
+
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .log-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .log-form .full { grid-column: 1/-1; }
@@ -330,6 +350,30 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
     </div>
   </div>
 
+  <div class="section" id="daily-chart-section">
+    <div class="chart-head">
+      <div class="section-label" style="margin-bottom:0">Wins &amp; losses per day</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div class="segmented" aria-label="Daily chart time range">
+          <button class="seg-btn active" id="daily-range-7"  type="button" onclick="setDailyRange(7)">1W</button>
+          <button class="seg-btn"        id="daily-range-14" type="button" onclick="setDailyRange(14)">2W</button>
+          <button class="seg-btn"        id="daily-range-30" type="button" onclick="setDailyRange(30)">1M</button>
+        </div>
+        <div class="segmented" aria-label="Daily chart account filter">
+          <button class="seg-btn active" id="daily-main-btn" type="button" onclick="setDailyAccount('main')">Main</button>
+          <button class="seg-btn"        id="daily-alt-btn"  type="button" onclick="setDailyAccount('alt')">Alt</button>
+        </div>
+      </div>
+    </div>
+    <div class="card chart-box">
+      <div class="legend">
+        <span><span class="ldot" style="background:#3B6D11"></span>Wins</span>
+        <span><span class="ldot" style="background:#A32D2D"></span>Losses</span>
+      </div>
+      <div class="chart-wrap" style="height:200px"><canvas id="dailyChart" role="img" aria-label="Wins and losses per day"></canvas></div>
+    </div>
+  </div>
+
   <div class="two-col section">
     <div>
       <div class="section-label">Saved Links</div>
@@ -364,12 +408,16 @@ const DEMO    = false;
 
 let me = localStorage.getItem('dl_me') || null;
 let allMatches = [], allLinks = [];
-let chartToday = null, chartTotal = null;
+let chartToday = null, chartTotal = null, chartDaily = null;
 let overviewAccount = localStorage.getItem('dl_overview_account') || 'all';
 let chartAccount = localStorage.getItem('dl_chart_account') || 'main';
 let h2hAccount = localStorage.getItem('dl_h2h_account') || 'main';
+let dailyAccount = localStorage.getItem('dl_daily_account') || 'main';
+let dailyRange = parseInt(localStorage.getItem('dl_daily_range') || '7', 10);
 let noteTimer = null;
 let pendingImport = null;
+// Per-match stat cache: matchId -> { players: {name: {kills,deaths,assists,player_damage,creep_damage,boss_damage,...}}, durationStr }
+const matchDetailCache = {};
 
 function today() { return new Date().toISOString().slice(0,10); }
 
@@ -627,6 +675,7 @@ function renderAll() {
   renderRecent();
   renderHistory();
   renderLinks();
+  renderDailyChart();
 }
 
 function renderTeam() {
@@ -888,6 +937,133 @@ renderHistory = function() {
     const safeMatch = escapeHtml(s.matchId || '');
     const players = s.rows.map(m=>`<span class="pill ${m.player}">${m.player}</span>`).join('');
     const heroes = s.rows.map(m=>`<span><span class="pill ${m.player}">${m.player}</span> <strong>${escapeHtml(m.hero || '-')}</strong></span>`).join('');
+
+    // Build stat panel from cache
+    const cached = s.matchId ? matchDetailCache[String(s.matchId)] : null;
+    let statsHtml = '';
+    if (cached && cached.players && Object.keys(cached.players).length) {
+      const playerNames = Object.keys(cached.players);
+
+      // ── KDA chip ──
+      const kdaRows = playerNames.map(name => {
+        const p = cached.players[name];
+        const k = p.kills ?? '?', d = p.deaths ?? '?', a = p.assists ?? '?';
+        return `<div class="msc-row">
+          <span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span>
+          <span class="msc-val"><span class="k">${k}</span> / <span class="d">${d}</span> / <span class="a">${a}</span></span>
+        </div>`;
+      }).join('');
+
+      // ── Net Worth chip ──
+      const nwRows = playerNames.filter(n => cached.players[n].net_worth !== undefined).map(name => {
+        const nw = cached.players[name].net_worth;
+        const label = nw >= 1000 ? (nw/1000).toFixed(1)+'k' : String(nw);
+        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span><span class="msc-val">${label}</span></div>`;
+      }).join('');
+
+      // ── Last Hits / Denies chip ──
+      const csRows = playerNames.filter(n => cached.players[n].last_hits !== undefined).map(name => {
+        const p = cached.players[name];
+        const lh = p.last_hits ?? 0, dn = p.denies ?? 0;
+        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span><span class="msc-val">${lh} / ${dn}</span></div>`;
+      }).join('');
+
+      // ── Healing chip ──
+      const healRows = playerNames.filter(n => cached.players[n].healing !== undefined && cached.players[n].healing > 0).map(name => {
+        const h = cached.players[name].healing;
+        const label = h >= 1000 ? (h/1000).toFixed(1)+'k' : String(h);
+        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span><span class="msc-val">${label}</span></div>`;
+      }).join('');
+
+      const durationBadge = cached.durationStr
+        ? `<span style="font-size:11px;color:var(--muted);font-family:var(--mono);background:var(--surface2);padding:2px 8px;border-radius:4px">${cached.durationStr}</span>` : '';
+
+      const chips = [
+        kdaRows    ? `<div class="match-stat-chip"><div class="msc-label">K / D / A</div><div class="msc-rows">${kdaRows}</div></div>` : '',
+        nwRows     ? `<div class="match-stat-chip"><div class="msc-label">Net Worth</div><div class="msc-rows">${nwRows}</div></div>` : '',
+        csRows     ? `<div class="match-stat-chip"><div class="msc-label">LH / Denies</div><div class="msc-rows">${csRows}</div></div>` : '',
+        healRows   ? `<div class="match-stat-chip"><div class="msc-label">Healing</div><div class="msc-rows">${healRows}</div></div>` : '',
+      ].filter(Boolean).join('');
+
+      // ── Damage donut wheels ──
+      const DMG_COLORS = {
+        player_damage: '#E2664A',   // red-orange — hero damage
+        creep_damage:  '#5BA3D9',   // blue — trooper/lane
+        boss_damage:   '#B87DD4',   // purple — neutral/boss
+      };
+      const DMG_LABELS = {
+        player_damage: 'vs Players',
+        creep_damage:  'vs Troopers',
+        boss_damage:   'vs Neutrals',
+      };
+
+      function buildDonut(slices, size = 54, stroke = 10) {
+        const r = (size - stroke) / 2;
+        const cx = size / 2, cy = size / 2;
+        const circumference = 2 * Math.PI * r;
+        const total = slices.reduce((s, sl) => s + sl.value, 0);
+        if (!total) return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${stroke}"/></svg>`;
+        let offset = 0;
+        // Start from top (rotate -90deg)
+        const arcs = slices.map(sl => {
+          const frac = sl.value / total;
+          const dash = frac * circumference;
+          const gap = circumference - dash;
+          const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${sl.color}" stroke-width="${stroke}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${(-offset * circumference / total).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
+          offset += sl.value;
+          return arc;
+        });
+        return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="dmg-wheel-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${stroke}"/>${arcs.join('')}</svg>`;
+      }
+
+      const wheels = playerNames.map(name => {
+        const p = cached.players[name];
+        const pd = p.player_damage || 0;
+        const cd = p.creep_damage  || 0;
+        const bd = p.boss_damage   || 0;
+        if (!pd && !cd && !bd) return '';
+        const slices = [
+          { value: pd, color: DMG_COLORS.player_damage },
+          { value: cd, color: DMG_COLORS.creep_damage  },
+          { value: bd, color: DMG_COLORS.boss_damage   },
+        ];
+        const donut = buildDonut(slices);
+        const total = pd + cd + bd;
+        const fmt = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : (v > 0 ? String(v) : null);
+        const legendRows = [
+          { key: 'player_damage', v: pd },
+          { key: 'creep_damage',  v: cd },
+          { key: 'boss_damage',   v: bd },
+        ].filter(x => x.v > 0).map(x => `
+          <div class="dmg-legend-row">
+            <span class="dmg-legend-dot" style="background:${DMG_COLORS[x.key]}"></span>
+            <span class="dmg-legend-label">${DMG_LABELS[x.key]}</span>
+            <span class="dmg-legend-val">${fmt(x.v)}</span>
+          </div>`).join('');
+        return `<div class="dmg-wheel-card">
+          ${donut}
+          <div class="dmg-wheel-info">
+            <div class="dmg-wheel-name" style="color:${COLORS[name]||'var(--text)'}">${name} <span style="font-size:10px;color:var(--muted);font-weight:400">${fmt(total)} total</span></div>
+            <div class="dmg-legend">${legendRows}</div>
+          </div>
+        </div>`;
+      }).filter(Boolean).join('');
+
+      const hasDmgData = wheels.length > 0;
+
+      statsHtml = `
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px">
+          <span style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">Match stats</span>
+          ${durationBadge}
+        </div>
+        ${chips ? `<div class="match-stat-row">${chips}</div>` : ''}
+        ${hasDmgData ? `
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:5px">Damage breakdown</div>
+          <div class="dmg-wheels-row">${wheels}</div>` : ''}`;
+    } else if (s.matchId) {
+      statsHtml = `<p class="match-stats-loading">Fetch this match via Auto Fetch to see detailed stats &amp; damage breakdown.</p>`;
+    }
+
     return `
       <tr class="match-main" onclick="toggleMatchDetail('${rowId}')">
         <td style="font-family:var(--mono);font-size:12px">${displayDate(s.date)}</td>
@@ -901,6 +1077,7 @@ renderHistory = function() {
       <tr class="match-detail" id="${rowId}">
         <td colspan="7">
           <div class="hero-strip">${heroes}</div>
+          ${statsHtml}
           <div class="note-line">
             <input type="text" id="${rowId}-note" value="${escapeHtml(s.matchNotes || '')}" placeholder="Match notes..." onclick="event.stopPropagation()" />
             <button class="btn sm primary" onclick="saveMatchNotes('${safeMatch}','${s.account}','${rowId}-note')">Save note</button>
@@ -951,6 +1128,56 @@ function renderLinks() {
       </div>
       <button class="btn danger" onclick="removeLink(${l.id})">✕</button>
     </div>`).join('');
+}
+
+function setDailyAccount(account) {
+  dailyAccount = account === 'alt' ? 'alt' : 'main';
+  localStorage.setItem('dl_daily_account', dailyAccount);
+  renderDailyChart();
+}
+
+function setDailyRange(days) {
+  dailyRange = days;
+  localStorage.setItem('dl_daily_range', String(days));
+  renderDailyChart();
+}
+
+function renderDailyChart() {
+  ['main','alt'].forEach(a => {
+    const b = document.getElementById(`daily-${a}-btn`); if (b) b.classList.toggle('active', dailyAccount === a);
+  });
+  [7,14,30].forEach(r => {
+    const b = document.getElementById(`daily-range-${r}`); if (b) b.classList.toggle('active', dailyRange === r);
+  });
+  const endDate = new Date(); endDate.setHours(0,0,0,0);
+  const startDate = new Date(endDate); startDate.setDate(startDate.getDate() - (dailyRange - 1));
+  const days = [];
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) days.push(d.toISOString().slice(0,10));
+  const sessions = getMatchSessions(allMatches.filter(x => x.account === dailyAccount));
+  const W = {}, L = {};
+  days.forEach(d => { W[d] = 0; L[d] = 0; });
+  for (const s of sessions) {
+    const date = s.date && s.date.length === 5 ? new Date().getFullYear() + '-' + s.date : s.date;
+    if (W[date] !== undefined) { if (s.result === 'win') W[date]++; else L[date]++; }
+  }
+  if (chartDaily) chartDaily.destroy();
+  chartDaily = new Chart(document.getElementById('dailyChart'), {
+    type: 'bar',
+    data: { labels: days.map(d => d.slice(5)), datasets: [
+      { label: 'Wins',   data: days.map(d => W[d]), backgroundColor: '#3B6D11', borderRadius: 4 },
+      { label: 'Losses', data: days.map(d => L[d]), backgroundColor: '#A32D2D', borderRadius: 4 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: {
+        title: ctx => days[ctx[0].dataIndex],
+        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}`
+      }}},
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#7a7f8e', maxRotation: 45 } },
+        y: { beginAtZero: true, ticks: { stepSize: 1, color: '#7a7f8e' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
 }
 
 // ============================================================================
@@ -1064,6 +1291,36 @@ async function importMatchViaId() {
 
     const duration = findKeyDeep(payload, 'duration_s') || findKeyDeep(payload, 'match_duration_s') || 0;
     const durationStr = duration ? Math.floor(duration / 60) + "m" : "";
+
+    // ── Cache detailed stats for the damage wheel and stat chips ──
+    // Valve's protobuf uses snake_case. We try many aliases since field names can vary by API version.
+    const STAT_ALIASES = {
+      kills:         ['kills', 'player_kills', 'num_kills'],
+      deaths:        ['deaths', 'player_deaths', 'num_deaths'],
+      assists:       ['assists', 'player_assists', 'num_assists'],
+      net_worth:     ['net_worth', 'netWorth', 'gold_earned', 'total_gold'],
+      last_hits:     ['last_hits', 'lastHits', 'cs', 'creep_kills'],
+      denies:        ['denies', 'deny_count', 'denies_count'],
+      healing:       ['hero_healing', 'healing_dealt', 'total_healing', 'player_healing'],
+      // Damage split — the three categories we care about
+      player_damage: ['player_damage', 'hero_damage', 'damage_dealt_to_heroes', 'player_damage_dealt_to_heroes', 'total_damage_dealt_to_heroes'],
+      creep_damage:  ['creep_damage', 'trooper_damage', 'damage_dealt_to_npcs', 'minion_damage', 'lane_creep_damage', 'damage_dealt_to_creeps'],
+      boss_damage:   ['boss_damage', 'neutral_damage', 'damage_dealt_to_neutrals', 'objective_damage', 'damage_dealt_to_objectives', 'jungle_damage'],
+    };
+    const detailCache = {};
+    for (const pData of playersInMatch) {
+      const squadMember = resolveSquadMember(pData);
+      if (!squadMember) continue;
+      const stats = {};
+      for (const [statKey, aliases] of Object.entries(STAT_ALIASES)) {
+        const val = findValueDeep(pData, aliases);
+        if (val !== null && val !== undefined) stats[statKey] = Number(val);
+      }
+      detailCache[squadMember.name] = stats;
+    }
+    if (matchId && Object.keys(detailCache).length) {
+      matchDetailCache[String(matchId)] = { players: detailCache, duration, durationStr };
+    }
     
     const startTimeRaw = findKeyDeep(payload, 'start_time');
     let matchFormattedDate = today();
