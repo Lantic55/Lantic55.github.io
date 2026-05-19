@@ -1287,15 +1287,19 @@ function renderDailyChart() {
   [7,14,30].forEach(r => {
     const b = document.getElementById(`daily-range-${r}`); if (b) b.classList.toggle('active', dailyRange === r);
   });
-  const endDate = new Date(); endDate.setHours(0,0,0,0);
+  const accountRows = allMatches.filter(x => x.account === dailyAccount);
+  const normalizeMatchDate = date => date && date.length === 5 ? new Date().getFullYear() + '-' + date : date;
+  const latestStoredDate = accountRows.map(x => normalizeMatchDate(x.date)).filter(Boolean).sort().pop();
+  const endDate = latestStoredDate ? new Date(latestStoredDate + 'T00:00:00') : new Date();
+  endDate.setHours(0,0,0,0);
   const startDate = new Date(endDate); startDate.setDate(startDate.getDate() - (dailyRange - 1));
   const days = [];
   for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) days.push(d.toISOString().slice(0,10));
-  const sessions = getMatchSessions(allMatches.filter(x => x.account === dailyAccount));
+  const sessions = getMatchSessions(accountRows);
   const W = {}, L = {};
   days.forEach(d => { W[d] = 0; L[d] = 0; });
   for (const s of sessions) {
-    const date = s.date && s.date.length === 5 ? new Date().getFullYear() + '-' + s.date : s.date;
+    const date = normalizeMatchDate(s.date);
     if (W[date] !== undefined) { if (s.result === 'win') W[date]++; else L[date]++; }
   }
   if (chartDaily) chartDaily.destroy();
