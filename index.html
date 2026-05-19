@@ -111,6 +111,9 @@ header h1 { font-size: 17px; font-weight: 500; }
 .breakdown-table tr:last-child td, .comparison-table tr:last-child td { border-bottom: none; }
 .legend-player { display: inline-flex; align-items: center; gap: 8px; min-width: 90px; }
 .legend-dot { width: 11px; height: 11px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.04); }
+.award-badge { display: inline-flex; align-items: center; justify-content: center; margin-left: 5px; font-size: 11px; line-height: 1; vertical-align: middle; }
+.award-badge.mvp { color: #F2C94C; text-shadow: 0 0 8px rgba(242,201,76,0.35); }
+.award-badge.key { color: #59A7FF; text-shadow: 0 0 8px rgba(89,167,255,0.3); }
 .total-row td { color: var(--text); padding-top: 12px; }
 .comparison-card { margin-bottom: 6px; }
 .comparison-table th, .comparison-table td { text-align: center; }
@@ -981,13 +984,19 @@ renderHistory = function() {
     let statsHtml = '';
     if (cached && cached.players && Object.keys(cached.players).length) {
       const playerNames = Object.keys(cached.players);
+      const awardBadge = p => {
+        const rank = Number(p.mvp_rank || 0);
+        if (rank === 1) return `<span class="award-badge mvp" title="MVP">★</span>`;
+        if (rank === 2 || rank === 3) return `<span class="award-badge key" title="Key player">◆</span>`;
+        return '';
+      };
 
       // ── KDA chip ──
       const kdaRows = playerNames.map(name => {
         const p = cached.players[name];
         const k = p.kills ?? '?', d = p.deaths ?? '?', a = p.assists ?? '?';
         return `<div class="msc-row">
-          <span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span>
+          <span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}${awardBadge(p)}</span>
           <span class="msc-val"><span class="k">${k}</span> / <span class="d">${d}</span> / <span class="a">${a}</span></span>
         </div>`;
       }).join('');
@@ -996,21 +1005,21 @@ renderHistory = function() {
       const nwRows = playerNames.filter(n => cached.players[n].net_worth !== undefined).map(name => {
         const nw = cached.players[name].net_worth;
         const label = nw >= 1000 ? (nw/1000).toFixed(1)+'k' : String(nw);
-        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span><span class="msc-val">${label}</span></div>`;
+        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}${awardBadge(cached.players[name])}</span><span class="msc-val">${label}</span></div>`;
       }).join('');
 
       // ── Last Hits / Denies chip ──
       const csRows = playerNames.filter(n => cached.players[n].last_hits !== undefined).map(name => {
         const p = cached.players[name];
         const lh = p.last_hits ?? 0, dn = p.denies ?? 0;
-        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span><span class="msc-val">${lh} / ${dn}</span></div>`;
+        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}${awardBadge(p)}</span><span class="msc-val">${lh} / ${dn}</span></div>`;
       }).join('');
 
       // ── Healing chip ──
       const healRows = playerNames.filter(n => cached.players[n].healing !== undefined && cached.players[n].healing > 0).map(name => {
         const h = cached.players[name].healing;
         const label = h >= 1000 ? (h/1000).toFixed(1)+'k' : String(h);
-        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}</span><span class="msc-val">${label}</span></div>`;
+        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}${awardBadge(cached.players[name])}</span><span class="msc-val">${label}</span></div>`;
       }).join('');
 
       const durationBadge = cached.durationStr ? `<span class="duration-badge">${cached.durationStr}</span>` : '';
@@ -1111,11 +1120,11 @@ renderHistory = function() {
       const detailHealingTotal = detailRows.reduce((sum, row) => sum + row.healing, 0);
       const detailDamageRows = detailRows.filter(row => row.damage > 0).map(row => `
         <tr>
-          <td><span class="legend-player"><span class="legend-dot" style="background:${detailColor(row.name)}"></span><span style="color:${detailColor(row.name)}">${row.name}</span></span></td>
+          <td><span class="legend-player"><span class="legend-dot" style="background:${detailColor(row.name)}"></span><span style="color:${detailColor(row.name)}">${row.name}${awardBadge(row.p)}</span></span></td>
           <td>${fmtDetail(row.p.player_damage || 0)}</td><td>${fmtDetail(row.p.creep_damage || 0)}</td><td>${fmtDetail(row.p.boss_damage || 0)}</td><td>${fmtDetail(row.damage)}</td>
         </tr>`).join('');
       const detailHealingRows = detailRows.filter(row => row.healing > 0).map(row => `
-        <tr><td><span class="legend-player"><span class="legend-dot" style="background:${detailColor(row.name)}"></span><span style="color:${detailColor(row.name)}">${row.name}</span></span></td><td>${fmtDetail(row.healing)}</td></tr>
+        <tr><td><span class="legend-player"><span class="legend-dot" style="background:${detailColor(row.name)}"></span><span style="color:${detailColor(row.name)}">${row.name}${awardBadge(row.p)}</span></span></td><td>${fmtDetail(row.healing)}</td></tr>
       `).join('');
       const breakdownToggle = active => `<div class="detail-toggle breakdown-toggle"><button class="${active === 'damage' ? 'active' : ''}" type="button" data-tab="damage" onclick="setBreakdownTab('${rowId}','damage')">Damage</button><button class="${active === 'support' ? 'active' : ''}" type="button" data-tab="support" onclick="setBreakdownTab('${rowId}','support')">Support</button></div>`;
       const richDamageBreakdown = detailDamageTotal ? `
@@ -1136,19 +1145,19 @@ renderHistory = function() {
         </div>` : '';
       const comparisonRows = detailRows.map(row => {
         const p = row.p;
-        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${p.kills ?? 0}</td><td>${p.deaths ?? 0}</td><td>${p.assists ?? 0}</td><td>${fmtDetail(p.player_damage || 0)}</td><td>${fmtDetail(p.healing || 0)}</td></tr>`;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}${awardBadge(p)}</td><td>${p.kills ?? 0}</td><td>${p.deaths ?? 0}</td><td>${p.assists ?? 0}</td><td>${fmtDetail(p.player_damage || 0)}</td><td>${fmtDetail(p.healing || 0)}</td></tr>`;
       }).join('');
       const farmRows = detailRows.map(row => {
         const p = row.p;
-        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${fmtDetail(p.creep_damage || 0)}</td><td>${fmtDetail(p.boss_damage || 0)}</td><td>${p.last_hits ?? 0}</td><td>${p.denies ?? 0}</td></tr>`;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}${awardBadge(p)}</td><td>${fmtDetail(p.creep_damage || 0)}</td><td>${fmtDetail(p.boss_damage || 0)}</td><td>${p.last_hits ?? 0}</td><td>${p.denies ?? 0}</td></tr>`;
       }).join('');
       const economyRows = detailRows.map(row => {
         const p = row.p;
-        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${fmtDetail(p.net_worth || 0)}</td><td>${p.last_hits ?? 0}</td><td>${p.denies ?? 0}</td></tr>`;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}${awardBadge(p)}</td><td>${fmtDetail(p.net_worth || 0)}</td><td>${p.last_hits ?? 0}</td><td>${p.denies ?? 0}</td></tr>`;
       }).join('');
       const supportRows = detailRows.map(row => {
         const p = row.p;
-        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}</td><td>${p.assists ?? 0}</td><td>${fmtDetail(p.healing || 0)}</td><td>${fmtDetail(p.player_damage || 0)}</td></tr>`;
+        return `<tr><td class="player-cell" style="color:${detailColor(row.name)}">${row.name}${awardBadge(p)}</td><td>${p.assists ?? 0}</td><td>${fmtDetail(p.healing || 0)}</td><td>${fmtDetail(p.player_damage || 0)}</td></tr>`;
       }).join('');
 
       statsHtml = `
@@ -1469,6 +1478,11 @@ async function importMatchViaId() {
 	  assists: [
 		"assists",
 		"player_stats.assists"
+	  ],
+
+	  mvp_rank: [
+		"mvp_rank",
+		"player_stats.mvp_rank"
 	  ],
 
 	  net_worth: [
