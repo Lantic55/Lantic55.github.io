@@ -616,6 +616,12 @@ const getLinks   = () => sb('links?select=*&order=id.asc');
 const postLink   = l => sb('links', { method:'POST', body: JSON.stringify(l) });
 const delLink    = id => sb('links?id=eq.'+id, { method:'DELETE', prefer:'' });
 const getNotes   = () => sb('notes?select=*&limit=1');
+const getMatchDetails = () => sb('match_details?select=match_id,detail');
+const upsertMatchDetail = row => sb('match_details?on_conflict=match_id', {
+  method:'POST',
+  prefer:'resolution=merge-duplicates,return=representation',
+  body: JSON.stringify(row)
+});
 
 async function putNotes(content) {
   const rows = await getNotes();
@@ -642,9 +648,18 @@ async function enterMain() {
   document.getElementById('log-date').value = today();
   sync('Loading…');
   try {
-    const [m, l, n] = await Promise.all([getMatches(), getLinks(), getNotes()]);
+    const [m, l, n, details] = await Promise.all([
+      getMatches(),
+      getLinks(),
+      getNotes(),
+      getMatchDetails().catch(() => [])
+    ]);
     allMatches = m || [];
     allLinks   = l || [];
+    for (const row of details || []) {
+      if (row && row.match_id && row.detail) matchDetailCache[String(row.match_id)] = row.detail;
+    }
+    saveMatchDetailCache();
     document.getElementById('notes').value = (n && n.length) ? n[0].content : '';
     sync('');
     renderAll();
@@ -1455,8 +1470,9 @@ function cacheMatchDetailsFromPayload(matchId, payload) {
     detailCache[squadMember.name] = stats;
   }
   if (!Object.keys(detailCache).length) throw new Error(`No registered players found in match ${matchId}`);
-  matchDetailCache[String(matchId)] = { players: detailCache, duration, durationStr, reingestedAt: new Date().toISOString() };
-  return Object.keys(detailCache);
+  const detail = { players: detailCache, duration, durationStr, reingestedAt: new Date().toISOString() };
+  matchDetailCache[String(matchId)] = detail;
+  return detail;
 }
 
 async function reingestSavedMatches() {
@@ -1477,7 +1493,8 @@ async function reingestSavedMatches() {
   for (const id of ids) {
     try {
       const payload = await fetchMatchPayload(id);
-      cacheMatchDetailsFromPayload(id, payload);
+      const detail = cacheMatchDetailsFromPayload(id, payload);
+      await upsertMatchDetail({ match_id: id, detail, updated_at: new Date().toISOString() });
       done++;
     } catch (e) {
       failed++;
@@ -1687,8 +1704,13 @@ async function importMatchViaId() {
 	  detailCache[squadMember.name] = stats;
 	}
     if (matchId && Object.keys(detailCache).length) {
-      matchDetailCache[String(matchId)] = { players: detailCache, duration, durationStr };
+      matchDetailCache[String(matchId)] = { players: detailCache, duration, durationStr, reingestedAt: new Date().toISOString() };
       saveMatchDetailCache();
+      upsertMatchDetail({
+        match_id: String(matchId),
+        detail: matchDetailCache[String(matchId)],
+        updated_at: new Date().toISOString()
+      }).catch(e => console.warn('Could not save match details yet', e));
     }
     
     const startTimeRaw = findKeyDeep(payload, 'start_time');
