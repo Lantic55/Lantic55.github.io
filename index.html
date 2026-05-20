@@ -450,6 +450,8 @@ let noteTimer = null;
 let pendingImport = null;
 // Per-match stat cache: matchId -> { players: {name: {kills,deaths,assists,player_damage,creep_damage,boss_damage,...}}, durationStr }
 const matchDetailCache = JSON.parse(localStorage.getItem('dl_match_detail_cache') || '{}');
+const openMatchDetailKeys = new Set();
+const loadingMatchDetailIds = new Set();
 
 function saveMatchDetailCache() {
   try {
@@ -697,6 +699,10 @@ function displayDate(date) {
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function jsString(value) {
+  return String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ');
 }
 
 function getMatchSessions(rows) {
@@ -999,7 +1005,10 @@ renderHistory = function() {
 
   body.innerHTML=sessions.map((s,i)=>{
     const rowId = `match-detail-${i}`;
+    const detailKey = encodeURIComponent(`${s.matchId || 'manual'}|${s.account || ''}|${s.date || ''}`);
     const safeMatch = escapeHtml(s.matchId || '');
+    const jsMatchId = jsString(s.matchId || '');
+    const isOpen = openMatchDetailKeys.has(detailKey);
     const players = s.rows.map(m=>`<span class="pill ${m.player}">${m.player}</span>`).join('');
     const heroes = s.rows.map(m=>`<span><span class="pill ${m.player}">${m.player}</span> <strong>${escapeHtml(m.hero || '-')}</strong></span>`).join('');
 
@@ -1190,11 +1199,12 @@ renderHistory = function() {
           <table class="comparison-table comparison-view" data-tab="support"><thead><tr><th>Player</th><th>Assists</th><th>Healing</th><th>Player Dmg</th></tr></thead><tbody>${supportRows}</tbody></table>
         </div>`;
     } else if (s.matchId) {
-      statsHtml = `<p class="match-stats-loading">Fetch this match via Auto Fetch to see detailed stats &amp; damage breakdown.</p>`;
+      const loading = loadingMatchDetailIds.has(String(s.matchId));
+      statsHtml = `<p class="match-stats-loading">${loading ? 'Loading detailed stats...' : 'Click to load detailed stats and damage breakdown.'}</p>`;
     }
 
     return `
-      <tr class="match-main" onclick="toggleMatchDetail('${rowId}')">
+      <tr class="match-main" onclick="toggleMatchDetail('${rowId}','${detailKey}','${jsMatchId}')">
         <td style="font-family:var(--mono);font-size:12px">${displayDate(s.date)}</td>
         <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${escapeHtml(s.matchId || 'manual')}</td>
         <td><span class="pill ${s.account}">${s.account}</span></td>
@@ -1203,7 +1213,7 @@ renderHistory = function() {
         <td style="color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${escapeHtml(s.matchNotes || '')}</td>
         <td><button class="btn danger sm" onclick="event.stopPropagation(); removeMatchSession('${safeMatch}','${s.account}')">x</button></td>
       </tr>
-      <tr class="match-detail" id="${rowId}">
+      <tr class="match-detail ${isOpen ? 'open' : ''}" id="${rowId}">
         <td colspan="7">
           <div class="match-detail-panel">
             <div class="match-detail-top">${heroes}</div>
@@ -1218,8 +1228,38 @@ renderHistory = function() {
   }).join('');
 };
 
-function toggleMatchDetail(id) {
-  document.getElementById(id)?.classList.toggle('open');
+function toggleMatchDetail(id, detailKey, matchId) {
+  const row = document.getElementById(id);
+  if (!row) return;
+  const isOpen = row.classList.toggle('open');
+  if (detailKey) {
+    if (isOpen) openMatchDetailKeys.add(detailKey);
+    else openMatchDetailKeys.delete(detailKey);
+  }
+  if (isOpen && matchId && !matchDetailCache[String(matchId)] && !loadingMatchDetailIds.has(String(matchId))) {
+    loadMatchDetailsOnDemand(matchId);
+  }
+}
+
+async function loadMatchDetailsOnDemand(matchId) {
+  const id = String(matchId);
+  loadingMatchDetailIds.add(id);
+  sync('Loading match details...');
+  renderHistory();
+  try {
+    const payload = await fetchMatchPayload(id);
+    const detail = cacheMatchDetailsFromPayload(id, payload);
+    saveMatchDetailCache();
+    await upsertMatchDetail({ match_id: id, detail, updated_at: new Date().toISOString() });
+    sync('Match details loaded');
+  } catch (e) {
+    sync('Match detail load failed');
+    console.warn('Could not load match details', e);
+    alert(`Could not load details for match ${id}: ${e.message}`);
+  } finally {
+    loadingMatchDetailIds.delete(id);
+    renderHistory();
+  }
 }
 
 function setBreakdownTab(rowId, tab) {
