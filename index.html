@@ -459,7 +459,15 @@ function saveMatchDetailCache() {
   } catch (_) {}
 }
 
-function today() { return new Date().toISOString().slice(0,10); }
+function localDateKey(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function today() { return localDateKey(); }
 
 // 1. STABLE SQUAD MATRIX
 const STEAM_MAPPING = {
@@ -1346,13 +1354,17 @@ function renderDailyChart() {
     const b = document.getElementById(`daily-range-${r}`); if (b) b.classList.toggle('active', dailyRange === r);
   });
   const accountRows = dailyAccount === 'all' ? allMatches : allMatches.filter(x => x.account === dailyAccount);
-  const normalizeMatchDate = date => date && date.length === 5 ? new Date().getFullYear() + '-' + date : date;
+  const normalizeMatchDate = date => {
+    if (!date) return '';
+    const value = String(date);
+    return value.length === 5 ? `${new Date().getFullYear()}-${value}` : value.slice(0, 10);
+  };
   const latestStoredDate = accountRows.map(x => normalizeMatchDate(x.date)).filter(Boolean).sort().pop();
-  const endDate = latestStoredDate ? new Date(latestStoredDate + 'T00:00:00') : new Date();
+  const endDate = latestStoredDate ? new Date(latestStoredDate + 'T12:00:00') : new Date();
   endDate.setHours(0,0,0,0);
   const startDate = new Date(endDate); startDate.setDate(startDate.getDate() - (dailyRange - 1));
   const days = [];
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) days.push(d.toISOString().slice(0,10));
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) days.push(localDateKey(d));
   const sessions = getMatchSessions(accountRows);
   const W = {}, L = {};
   days.forEach(d => { W[d] = 0; L[d] = 0; });
