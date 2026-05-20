@@ -92,7 +92,6 @@ header h1 { font-size: 17px; font-weight: 500; }
 .match-stat-chip .msc-name { font-size: 13px; }
 .match-stat-chip .msc-val  { font-size: 15px; font-family: var(--mono); color: var(--text); }
 .k { color: #97C459; } .d { color: #F09595; } .a { color: #85B7EB; }
-.detail-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; margin-bottom: 18px; }
 .detail-card { background: linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01)); border: 1px solid var(--border); border-radius: var(--r); padding: 16px; }
 .detail-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
 .detail-card-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text); }
@@ -122,6 +121,7 @@ header h1 { font-size: 17px; font-weight: 500; }
 .comparison-view.active { display: table; }
 .breakdown-view { display: none; margin-bottom: 18px; }
 .breakdown-view.active { display: block; }
+.daily-note { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
 .match-stats-loading { font-size: 12px; color: var(--hint); font-family: var(--mono); margin-top: 8px; }
 
 .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
@@ -182,7 +182,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
   .stats-grid { grid-template-columns: repeat(2,1fr); }
   .player-row { grid-template-columns: repeat(2,1fr); }
   .charts-row, .log-grid, .two-col { grid-template-columns: 1fr; }
-  .match-stat-row, .detail-grid, .breakdown-body { grid-template-columns: 1fr; }
+  .match-stat-row, .breakdown-body { grid-template-columns: 1fr; }
   .breakdown-table, .comparison-table { min-width: 620px; }
   .detail-card { overflow-x: auto; }
 }
@@ -305,6 +305,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <input type="text" id="statlocker-url" placeholder="Enter Match ID or Link here..." style="flex:1; min-width:240px" />
         <button class="btn primary" onclick="importMatchViaId()">Auto Fetch Data</button>
+        <button class="btn" onclick="reingestSavedMatches()">Reingest saved matches</button>
       </div>
       <div class="warn-box" id="import-warnings"></div>
       <div class="preview-box" id="import-preview"></div>
@@ -389,8 +390,9 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
           <button class="seg-btn"        id="daily-range-30" type="button" onclick="setDailyRange(30)">1M</button>
         </div>
         <div class="segmented" aria-label="Daily chart account filter">
-          <button class="seg-btn active" id="daily-main-btn" type="button" onclick="setDailyAccount('main')">Main</button>
-          <button class="seg-btn"        id="daily-alt-btn"  type="button" onclick="setDailyAccount('alt')">Alt</button>
+          <button class="seg-btn" id="daily-all-btn"  type="button" onclick="setDailyAccount('all')">All</button>
+          <button class="seg-btn" id="daily-main-btn" type="button" onclick="setDailyAccount('main')">Main</button>
+          <button class="seg-btn" id="daily-alt-btn"  type="button" onclick="setDailyAccount('alt')">Alt</button>
         </div>
       </div>
     </div>
@@ -399,6 +401,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
         <span><span class="ldot" style="background:#3B6D11"></span>Wins</span>
         <span><span class="ldot" style="background:#A32D2D"></span>Losses</span>
       </div>
+      <div class="daily-note" id="daily-chart-note"></div>
       <div class="chart-wrap" style="height:200px"><canvas id="dailyChart" role="img" aria-label="Wins and losses per day"></canvas></div>
     </div>
   </div>
@@ -441,12 +444,18 @@ let chartToday = null, chartTotal = null, chartDaily = null;
 let overviewAccount = localStorage.getItem('dl_overview_account') || 'all';
 let chartAccount = localStorage.getItem('dl_chart_account') || 'main';
 let h2hAccount = localStorage.getItem('dl_h2h_account') || 'main';
-let dailyAccount = localStorage.getItem('dl_daily_account') || 'main';
+let dailyAccount = ['all','main','alt'].includes(localStorage.getItem('dl_daily_account')) ? localStorage.getItem('dl_daily_account') : 'main';
 let dailyRange = parseInt(localStorage.getItem('dl_daily_range') || '7', 10);
 let noteTimer = null;
 let pendingImport = null;
 // Per-match stat cache: matchId -> { players: {name: {kills,deaths,assists,player_damage,creep_damage,boss_damage,...}}, durationStr }
-const matchDetailCache = {};
+const matchDetailCache = JSON.parse(localStorage.getItem('dl_match_detail_cache') || '{}');
+
+function saveMatchDetailCache() {
+  try {
+    localStorage.setItem('dl_match_detail_cache', JSON.stringify(matchDetailCache));
+  } catch (_) {}
+}
 
 function today() { return new Date().toISOString().slice(0,10); }
 
@@ -1016,12 +1025,6 @@ renderHistory = function() {
       }).join('');
 
       // ── Healing chip ──
-      const healRows = playerNames.filter(n => cached.players[n].healing !== undefined && cached.players[n].healing > 0).map(name => {
-        const h = cached.players[name].healing;
-        const label = h >= 1000 ? (h/1000).toFixed(1)+'k' : String(h);
-        return `<div class="msc-row"><span class="msc-name" style="color:${COLORS[name]||'var(--muted)'}">${name}${awardBadge(cached.players[name])}</span><span class="msc-val">${label}</span></div>`;
-      }).join('');
-
       const durationBadge = cached.durationStr ? `<span class="duration-badge">${cached.durationStr}</span>` : '';
 
       const chips = [
@@ -1269,7 +1272,7 @@ function renderLinks() {
 }
 
 function setDailyAccount(account) {
-  dailyAccount = account === 'alt' ? 'alt' : 'main';
+  dailyAccount = ['all','main','alt'].includes(account) ? account : 'main';
   localStorage.setItem('dl_daily_account', dailyAccount);
   renderDailyChart();
 }
@@ -1281,13 +1284,13 @@ function setDailyRange(days) {
 }
 
 function renderDailyChart() {
-  ['main','alt'].forEach(a => {
+  ['all','main','alt'].forEach(a => {
     const b = document.getElementById(`daily-${a}-btn`); if (b) b.classList.toggle('active', dailyAccount === a);
   });
   [7,14,30].forEach(r => {
     const b = document.getElementById(`daily-range-${r}`); if (b) b.classList.toggle('active', dailyRange === r);
   });
-  const accountRows = allMatches.filter(x => x.account === dailyAccount);
+  const accountRows = dailyAccount === 'all' ? allMatches : allMatches.filter(x => x.account === dailyAccount);
   const normalizeMatchDate = date => date && date.length === 5 ? new Date().getFullYear() + '-' + date : date;
   const latestStoredDate = accountRows.map(x => normalizeMatchDate(x.date)).filter(Boolean).sort().pop();
   const endDate = latestStoredDate ? new Date(latestStoredDate + 'T00:00:00') : new Date();
@@ -1301,6 +1304,13 @@ function renderDailyChart() {
   for (const s of sessions) {
     const date = normalizeMatchDate(s.date);
     if (W[date] !== undefined) { if (s.result === 'win') W[date]++; else L[date]++; }
+  }
+  const note = document.getElementById('daily-chart-note');
+  if (note) {
+    const totalSessions = sessions.length;
+    const totalRows = accountRows.length;
+    const scope = dailyAccount === 'all' ? 'all accounts' : `${dailyAccount} account`;
+    note.textContent = `${scope}: ${totalSessions} match sessions from ${totalRows} player rows.`;
   }
   if (chartDaily) chartDaily.destroy();
   chartDaily = new Chart(document.getElementById('dailyChart'), {
@@ -1370,6 +1380,122 @@ function cancelImportPreview() {
   setImportWarnings([]);
   sync('');
 }
+
+async function fetchMatchPayload(matchId) {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-match`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    },
+    body: JSON.stringify({ matchId: String(matchId) })
+  });
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error || `Could not fetch match ${matchId}`);
+  return result.match;
+}
+
+function findKeyDeepGlobal(obj, keyName) {
+  if (!obj || typeof obj !== 'object') return null;
+  if (obj[keyName] !== undefined) return obj[keyName];
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key) && typeof obj[key] === 'object') {
+      const found = findKeyDeepGlobal(obj[key], keyName);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
+
+function getNestedStatGlobal(obj, paths = []) {
+  for (const path of paths) {
+    const keys = path.split('.');
+    let current = obj;
+    for (const key of keys) {
+      if (!current || typeof current !== 'object') { current = null; break; }
+      if (Array.isArray(current) && !/^\d+$/.test(key)) current = current[current.length - 1];
+      current = current[key];
+    }
+    if (current !== undefined && current !== null) {
+      const num = Number(current);
+      if (!Number.isNaN(num)) return num;
+    }
+  }
+  return null;
+}
+
+const DETAIL_STAT_PATHS = {
+  kills: ['kills', 'player_stats.kills'],
+  deaths: ['deaths', 'player_stats.deaths'],
+  assists: ['assists', 'player_stats.assists'],
+  mvp_rank: ['mvp_rank', 'player_stats.mvp_rank'],
+  net_worth: ['net_worth', 'player_stats.net_worth'],
+  last_hits: ['last_hits', 'player_stats.last_hits'],
+  denies: ['denies', 'player_stats.denies'],
+  healing: ['stats.player_healing', 'stats.teammate_healing', 'player_stats.hero_healing', 'player_stats.player_healing', 'hero_healing', 'player_healing'],
+  player_damage: ['stats.player_damage', 'player_stats.hero_damage', 'player_stats.player_damage', 'hero_damage', 'player_damage'],
+  creep_damage: ['stats.creep_damage', 'player_stats.creep_damage', 'creep_damage', 'trooper_damage', 'lane_creep_damage'],
+  boss_damage: ['stats.neutral_damage', 'stats.boss_damage', 'player_stats.boss_damage', 'player_stats.neutral_damage', 'neutral_damage', 'boss_damage', 'objective_damage']
+};
+
+function cacheMatchDetailsFromPayload(matchId, payload) {
+  const playersInMatch = findBestPlayersArray(payload);
+  if (!playersInMatch) throw new Error(`Could not find player stats for match ${matchId}`);
+  const duration = findKeyDeepGlobal(payload, 'duration_s') ?? findKeyDeepGlobal(payload, 'match_duration_s') ?? 0;
+  const durationStr = duration ? Math.floor(duration / 60) + 'm' : '';
+  const detailCache = {};
+  for (const pData of playersInMatch) {
+    const squadMember = resolveSquadMember(pData);
+    if (!squadMember) continue;
+    const stats = {};
+    for (const [statKey, paths] of Object.entries(DETAIL_STAT_PATHS)) {
+      const value = getNestedStatGlobal(pData, paths);
+      if (value !== null) stats[statKey] = value;
+    }
+    detailCache[squadMember.name] = stats;
+  }
+  if (!Object.keys(detailCache).length) throw new Error(`No registered players found in match ${matchId}`);
+  matchDetailCache[String(matchId)] = { players: detailCache, duration, durationStr, reingestedAt: new Date().toISOString() };
+  return Object.keys(detailCache);
+}
+
+async function reingestSavedMatches() {
+  const ids = [...new Set(allMatches.map(m => String(m.match_id || '').trim()).filter(Boolean))];
+  if (!ids.length) return alert('No saved match IDs to reingest yet.');
+  const ok = confirm(`Reingest detailed stats for ${ids.length} saved match ID${ids.length === 1 ? '' : 's'}?`);
+  if (!ok) return;
+
+  const box = document.getElementById('import-preview');
+  if (box) {
+    box.style.display = 'block';
+    box.innerHTML = `<p class="loading">Reingesting 0 / ${ids.length} matches...</p>`;
+  }
+  setImportWarnings([]);
+
+  let done = 0, failed = 0;
+  const warnings = [];
+  for (const id of ids) {
+    try {
+      const payload = await fetchMatchPayload(id);
+      cacheMatchDetailsFromPayload(id, payload);
+      done++;
+    } catch (e) {
+      failed++;
+      warnings.push(`${id}: ${e.message}`);
+    }
+    sync(`Reingested ${done + failed}/${ids.length} matches`);
+    if (box) box.innerHTML = `<p class="loading">Reingesting ${done + failed} / ${ids.length} matches...</p>`;
+  }
+  saveMatchDetailCache();
+  setImportWarnings(warnings);
+  if (box) {
+    box.innerHTML = `<p class="empty-state">Reingest complete: ${done} updated, ${failed} failed. Open a match row to see refreshed stats.</p>`;
+  }
+  sync(`Reingest complete: ${done} updated${failed ? `, ${failed} failed` : ''}`);
+  renderHistory();
+}
+
+window.reingestSavedMatches = reingestSavedMatches;
 
 async function confirmImportPreview() {
   if (!pendingImport || !pendingImport.length) return;
@@ -1562,6 +1688,7 @@ async function importMatchViaId() {
 	}
     if (matchId && Object.keys(detailCache).length) {
       matchDetailCache[String(matchId)] = { players: detailCache, duration, durationStr };
+      saveMatchDetailCache();
     }
     
     const startTimeRaw = findKeyDeep(payload, 'start_time');
