@@ -154,6 +154,7 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .pill.Neel   { background: rgba(29,158,117,0.15);  color: #5DCAA5; }
 .pill.Ollie  { background: rgba(216,90,48,0.15);   color: #F0997B; }
 .pill.Wren   { background: rgba(212,83,126,0.15);  color: #ED93B1; }
+.pill.Punkwashed { background: rgba(45,156,219,0.15); color: #7FC8F0; }
 
 .htable { width: 100%; border-collapse: collapse; font-size: 13px; }
 .htable th { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; padding: 0 8px 8px; border-bottom: 1px solid var(--border); }
@@ -204,6 +205,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
     <button class="player-btn" style="border-color:#1D9E75" onclick="selectPlayer('Neel')">Neel</button>
     <button class="player-btn" style="border-color:#D85A30" onclick="selectPlayer('Ollie')">Ollie</button>
     <button class="player-btn" style="border-color:#D4537E" onclick="selectPlayer('Wren')">Wren</button>
+    <button class="player-btn" style="border-color:#2D9CDB" onclick="selectPlayer('Punkwashed')">Punkwashed</button>
   </div>
   <p id="setup-msg" style="font-size:12px; color:var(--muted); font-family:var(--mono)"></p>
 </div>
@@ -245,7 +247,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
       <div style="display:flex; gap:8px; flex-wrap:wrap">
         <select id="hero-stat-player" onchange="renderHeroStats()" style="font-size:12px; width:auto">
           <option value="all">All players</option>
-          <option>Lantic</option><option>Neel</option><option>Ollie</option><option>Wren</option>
+          <option>Lantic</option><option>Neel</option><option>Ollie</option><option>Wren</option><option>Punkwashed</option>
         </select>
         <select id="hero-stat-account" onchange="renderHeroStats()" style="font-size:12px; width:auto">
           <option value="all">All accounts</option><option value="main">Main</option><option value="alt">Alt</option>
@@ -315,7 +317,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
         <div class="field">
           <label>Player</label>
           <select id="log-player">
-            <option>Lantic</option><option>Neel</option><option>Ollie</option><option>Wren</option>
+            <option>Lantic</option><option>Neel</option><option>Ollie</option><option>Wren</option><option>Punkwashed</option>
           </select>
         </div>
         <div class="field">
@@ -359,7 +361,7 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
       <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
         <select id="f-player" onchange="renderHistory()" style="font-size:12px">
           <option value="all">All players</option>
-          <option>Lantic</option><option>Neel</option><option>Ollie</option><option>Wren</option>
+          <option>Lantic</option><option>Neel</option><option>Ollie</option><option>Wren</option><option>Punkwashed</option>
         </select>
         <select id="f-account" onchange="renderHistory()" style="font-size:12px">
           <option value="all">All accounts</option><option value="main">Main</option><option value="alt">Alt</option>
@@ -434,8 +436,8 @@ textarea#notes { width: 100%; resize: vertical; min-height: 90px; }
 const SUPABASE_URL = 'https://ezzqccgyhndzfwtzejzw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6enFjY2d5aG5kemZ3dHplanp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMTUxMzcsImV4cCI6MjA5NDY5MTEzN30.GMaX7zVf-NuwlGG17kWwu3Bf_YsXRQgax73gpy_BBUI';
 
-const PLAYERS = ['Lantic','Neel','Ollie','Wren'];
-const COLORS  = { Lantic:'#7F77DD', Neel:'#1D9E75', Ollie:'#D85A30', Wren:'#D4537E' };
+const PLAYERS = ['Lantic','Neel','Ollie','Wren','Punkwashed'];
+const COLORS  = { Lantic:'#7F77DD', Neel:'#1D9E75', Ollie:'#D85A30', Wren:'#D4537E', Punkwashed:'#2D9CDB' };
 const DEMO    = false;
 
 let me = localStorage.getItem('dl_me') || null;
@@ -478,7 +480,8 @@ const STEAM_MAPPING = {
   "164064333":         { name: "Ollie",  account: "main" },
   "750982694":         { name: "Ollie",  account: "alt" },
   "122426714":         { name: "Wren",   account: "main" },
-  "833408696":         { name: "Wren",   account: "alt" }
+  "833408696":         { name: "Wren",   account: "alt" },
+  "181265443":         { name: "Punkwashed", account: "alt" }
 };
 
 // 2. VALVE HERO LOOKUP MATRIX
@@ -1410,6 +1413,89 @@ function setImportWarnings(warnings) {
   box.innerHTML = warnings.map(w => `<div>${escapeHtml(w)}</div>`).join('');
 }
 
+function resultFromPlayerDataGlobal(pData) {
+  const value = findValueDeep(pData, RESULT_KEYS);
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'boolean') return value ? 'win' : 'loss';
+  if (typeof value === 'number') {
+    if (value === 1) return 'win';
+    if (value === 0 || value === 2) return 'loss';
+  }
+  const raw = String(value).toLowerCase();
+  if (raw.includes('win') || raw.includes('victory') || raw === 'true') return 'win';
+  if (raw.includes('loss') || raw.includes('defeat') || raw === 'false') return 'loss';
+  return null;
+}
+
+function buildMatchRecordsFromPayload(matchId, payload) {
+  const playersInMatch = findBestPlayersArray(payload);
+  if (!playersInMatch) throw new Error('Could not find a player-stat array with account and hero data inside the match payload.');
+
+  const duration = findKeyDeepGlobal(payload, 'duration_s') ?? findKeyDeepGlobal(payload, 'match_duration_s') ?? 0;
+  const durationStr = duration ? Math.floor(duration / 60) + 'm' : '';
+  const existingRows = allMatches.filter(m => String(m.match_id || '') === String(matchId));
+  const existingDate = existingRows.find(m => m.date)?.date;
+  const startTimeRaw = findKeyDeepGlobal(payload, 'start_time');
+  const matchDate = existingDate || (startTimeRaw ? localDateKey(new Date(Number(startTimeRaw) * 1000)) : today());
+  const rawMatchWinner = findKeyDeepGlobal(payload, 'match_winner') ?? findKeyDeepGlobal(payload, 'winning_team') ?? findKeyDeepGlobal(payload, 'winner_team') ?? findKeyDeepGlobal(payload, 'winningTeam');
+  const matchWinner = normalizeTeamValue(rawMatchWinner);
+
+  const matchedPlayers = [];
+  for (const pData of playersInMatch) {
+    const squadMember = resolveSquadMember(pData);
+    if (!squadMember) continue;
+    matchedPlayers.push({ pData, squadMember, team: getTeamId(pData) });
+  }
+
+  const teamCounts = matchedPlayers.reduce((counts, player) => {
+    if (player.team !== null && Number.isFinite(player.team)) counts[player.team] = (counts[player.team] || 0) + 1;
+    return counts;
+  }, {});
+  const squadTeam = Object.entries(teamCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const playersToImport = squadTeam === null
+    ? matchedPlayers
+    : matchedPlayers.filter(player => String(player.team) === String(squadTeam));
+  const winningTeamCandidates = matchWinner === 0 ? [0, 2] : matchWinner === 1 ? [1, 3] : matchWinner === 2 ? [2, 0] : matchWinner === 3 ? [3, 1] : [];
+  const warnings = [];
+  const skippedNames = [];
+  const discoveredNames = [];
+  const records = [];
+
+  if (Object.keys(teamCounts).length > 1) warnings.push('Registered accounts appeared on both teams; importing the side with the most registered players.');
+  if (!playersToImport.length) warnings.push('No registered team players were found on the import side.');
+
+  for (const { pData, squadMember, team: playerTeam } of playersToImport) {
+    if (discoveredNames.includes(squadMember.name)) continue;
+    discoveredNames.push(squadMember.name);
+
+    let playerResult = resultFromPlayerDataGlobal(pData);
+    if (matchWinner !== null && playerTeam !== null) {
+      playerResult = winningTeamCandidates.includes(Number(playerTeam)) ? 'win' : 'loss';
+    }
+    if (!playerResult) {
+      playerResult = 'loss';
+      warnings.push(`Could not resolve win/loss for ${squadMember.name}; defaulted to loss. Check this match before import.`);
+    }
+
+    const heroId = getHeroId(pData);
+    const record = {
+      player: squadMember.name,
+      account: squadMember.account,
+      result: playerResult,
+      hero: HERO_IDS[heroId] || `Unknown (${heroId})`,
+      date: matchDate,
+      note: `Auto-Fetched | Duration: ${durationStr}`,
+      match_id: String(matchId)
+    };
+
+    const alreadyLogged = allMatches.some(m => String(m.match_id || '') === String(matchId) && m.player === record.player);
+    if (alreadyLogged) skippedNames.push(record.player);
+    else records.push(record);
+  }
+
+  return { records, warnings, skippedNames };
+}
+
 function showImportPreview(records, warnings, skippedNames) {
   const box = document.getElementById('import-preview');
   setImportWarnings(warnings);
@@ -1540,13 +1626,27 @@ async function reingestSavedMatches() {
   }
   setImportWarnings([]);
 
-  let done = 0, failed = 0;
+  let done = 0, failed = 0, addedRows = 0;
   const warnings = [];
   for (const id of ids) {
     try {
       const payload = await fetchMatchPayload(id);
       const detail = cacheMatchDetailsFromPayload(id, payload);
-      await upsertMatchDetail({ match_id: id, detail, updated_at: new Date().toISOString() });
+      try {
+        await upsertMatchDetail({ match_id: id, detail, updated_at: new Date().toISOString() });
+      } catch (detailError) {
+        warnings.push(`${id}: detailed stats loaded locally, but could not save to match_details (${detailError.message})`);
+      }
+      await refreshHeroLookup();
+      const importResult = buildMatchRecordsFromPayload(id, payload);
+      for (const record of importResult.records) {
+        const inserted = await postMatch(record);
+        if (inserted && inserted[0]) {
+          allMatches.push(inserted[0]);
+          addedRows++;
+        }
+      }
+      warnings.push(...importResult.warnings);
       done++;
     } catch (e) {
       failed++;
@@ -1558,10 +1658,10 @@ async function reingestSavedMatches() {
   saveMatchDetailCache();
   setImportWarnings(warnings);
   if (box) {
-    box.innerHTML = `<p class="empty-state">Reingest complete: ${done} updated, ${failed} failed. Open a match row to see refreshed stats.</p>`;
+    box.innerHTML = `<p class="empty-state">Reingest complete: ${done} updated, ${addedRows} missing player row${addedRows === 1 ? '' : 's'} added, ${failed} failed. Open a match row to see refreshed stats.</p>`;
   }
-  sync(`Reingest complete: ${done} updated${failed ? `, ${failed} failed` : ''}`);
-  renderHistory();
+  sync(`Reingest complete: ${done} updated, ${addedRows} rows added${failed ? `, ${failed} failed` : ''}`);
+  renderAll();
 }
 
 window.reingestSavedMatches = reingestSavedMatches;
@@ -1808,11 +1908,10 @@ async function importMatchViaId() {
     }, {});
     const squadTeam = Object.entries(teamCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
     if (Object.keys(teamCounts).length > 1) warnings.push('Registered accounts appeared on both teams; importing the side with the most registered players.');
-    if (matchedPlayers.length < 4) warnings.push(`Only ${matchedPlayers.length} registered team player${matchedPlayers.length===1?' was':'s were'} found.`);
     const playersToImport = squadTeam === null
       ? matchedPlayers
       : matchedPlayers.filter(player => String(player.team) === String(squadTeam));
-    if (playersToImport.length < 4) warnings.push(`Preview contains ${playersToImport.length}/4 expected team rows.`);
+    if (!playersToImport.length) warnings.push('No registered team players were found on the import side.');
     const winningTeamCandidates = matchWinner === 0 ? [0, 2] : matchWinner === 1 ? [1, 3] : matchWinner === 2 ? [2, 0] : matchWinner === 3 ? [3, 1] : [];
 
     for (const { pData, squadMember, team: playerTeam } of playersToImport) {
